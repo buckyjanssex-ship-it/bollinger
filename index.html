@@ -1,0 +1,426 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>美股布林通道下軌篩選器</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { background: #040d1a; color: #cbd5e1; font-family: 'Courier New', monospace; font-size: 13px; }
+.header { background: #0a1628; border-bottom: 1px solid #1e3a5f; padding: 16px 20px; }
+h1 { font-size: 19px; font-weight: 700; color: #f1f5f9; margin-bottom: 4px; }
+.sub { color: #334155; font-size: 11px; }
+.controls { display: flex; gap: 12px; margin-top: 14px; flex-wrap: wrap; align-items: center; }
+.btn { border: none; color: #fff; padding: 8px 16px; border-radius: 6px; cursor: pointer; font-size: 12px; font-weight: 600; font-family: inherit; }
+.btn-blue { background: #1d4ed8; }
+.btn-purple { background: #7c3aed; }
+.btn:disabled { background: #1e293b !important; color: #475569 !important; cursor: not-allowed; }
+.stat { text-align: center; min-width: 50px; }
+.stat-num { font-size: 20px; font-weight: 700; line-height: 1; }
+.stat-lbl { font-size: 10px; color: #334155; margin-top: 2px; }
+.content { padding: 16px 20px; }
+.info-bar { background: #0a1628; border: 1px solid #1e3a5f; border-radius: 8px; padding: 10px 14px; margin-bottom: 14px; font-size: 11px; color: #475569; display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+.live-dot { width: 7px; height: 7px; border-radius: 50%; background: #22c55e; box-shadow: 0 0 5px #22c55e; flex-shrink: 0; }
+.ai-box { background: #0f0a1e; border: 1px solid #6d28d9; border-radius: 10px; padding: 16px; margin-bottom: 16px; display: none; }
+.ai-label { color: #a78bfa; font-size: 10px; letter-spacing: 3px; margin-bottom: 8px; }
+.ai-text { color: #e2e8f0; font-size: 13px; line-height: 1.9; white-space: pre-wrap; }
+table { width: 100%; border-collapse: collapse; }
+th { padding: 7px 10px; color: #334155; font-weight: 500; font-size: 10px; text-align: right; letter-spacing: 1px; white-space: nowrap; border-bottom: 1px solid #0f172a; }
+th.l { text-align: left; }
+td { padding: 8px 10px; border-bottom: 1px solid #0a0f1a; text-align: right; vertical-align: middle; }
+td.l { text-align: left; }
+tr:hover td { background: rgba(30,58,95,0.25) !important; }
+.band-bar { position: relative; height: 7px; background: #0f172a; border-radius: 4px; min-width: 90px; border: 1px solid #1e293b; }
+.band-fill { position: absolute; left: 0; top: 0; height: 100%; border-radius: 4px; }
+.band-dot { position: absolute; top: 50%; width: 9px; height: 9px; border-radius: 50%; border: 2px solid #040d1a; transform: translate(-50%,-50%); }
+.band-labels { display: flex; justify-content: space-between; font-size: 9px; color: #1e293b; margin-top: 2px; }
+.break-badge { font-size: 9px; background: #450a0a; color: #fca5a5; padding: 1px 5px; border-radius: 3px; margin-right: 3px; }
+.idx-badge { font-size: 9px; padding: 1px 4px; border-radius: 3px; margin-right: 2px; font-weight: 600; }
+.dj { background:#1a2a4a; color:#60a5fa; }
+.nq { background:#1a1a3a; color:#a78bfa; }
+.sp { background:#1a3a2a; color:#4ade80; }
+.sort-btn { background: transparent; border: 1px solid #1e293b; color: #475569; padding: 3px 8px; border-radius: 4px; cursor: pointer; font-size: 11px; font-family: inherit; }
+.sort-btn.active { background: #1e3a5f; border-color: #3b82f6; color: #93c5fd; }
+.filter-btn { background: transparent; border: 1px solid #1e293b; color: #475569; padding: 3px 8px; border-radius: 4px; cursor: pointer; font-size: 11px; font-family: inherit; }
+.filter-btn.active { border-color: #22c55e; color: #4ade80; background: #052e16; }
+input[type=range] { accent-color: #3b82f6; width: 90px; vertical-align: middle; }
+.legend { display: flex; gap: 14px; margin-top: 14px; flex-wrap: wrap; padding-top: 10px; border-top: 1px solid #0f172a; }
+.legend-item { display: flex; align-items: center; gap: 5px; font-size: 10px; color: #334155; }
+.legend-dot { width: 6px; height: 6px; border-radius: 50%; }
+.note { margin-top: 8px; color: #1e3a5f; font-size: 10px; line-height: 1.6; }
+a.ticker-link { color: #f1f5f9; font-weight: 700; text-decoration: none; }
+@keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.3} }
+a.ticker-link:hover { color: #60a5fa; }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:10px">
+    <div>
+      <div style="color:#334155;font-size:10px;letter-spacing:3px;margin-bottom:4px">◉ BOLLINGER BAND SCANNER · SERVER-SIDE · AUTO REFRESH</div>
+      <h1>美股布林下軌篩選器</h1>
+      <div id="updateTime" class="sub">載入中…</div>
+    </div>
+    <div style="display:flex;gap:8px;align-items:center">
+      <button class="btn btn-blue" onclick="loadData()">↻ 重新整理</button>
+      <button class="btn btn-purple" id="aiBtn" onclick="runAI()" disabled>✦ AI 解讀</button>
+    </div>
+  </div>
+  <div class="controls">
+    <div style="display:flex;gap:5px;align-items:center">
+      <span style="color:#475569;font-size:11px">指數</span>
+      <button class="filter-btn active" id="f-DJ" onclick="toggleIdx('DJ')">🔵 道瓊</button>
+      <button class="filter-btn active" id="f-NQ" onclick="toggleIdx('NQ')">🟣 納斯達克</button>
+      <button class="filter-btn active" id="f-SP" onclick="toggleIdx('SP')">🟢 標普500</button>
+    </div>
+    <div style="display:flex;align-items:center;gap:8px">
+      <span style="color:#475569;font-size:11px">%B 閾值</span>
+      <input type="range" min="5" max="50" value="20" id="threshSlider" oninput="onThresh(this.value)">
+      <span id="threshLabel" style="color:#60a5fa;font-weight:700;min-width:34px">20%</span>
+    </div>
+    <div style="display:flex;gap:5px;align-items:center">
+      <span style="color:#475569;font-size:11px">排序</span>
+      <button class="sort-btn active" id="sort-pctB" onclick="setSort('pctB')">%B</button>
+      <button class="sort-btn" id="sort-chg" onclick="setSort('chg')">跌幅</button>
+      <button class="sort-btn" id="sort-bw"  onclick="setSort('bw')">波動</button>
+    </div>
+    <div style="display:flex;gap:12px;margin-left:auto">
+      <div class="stat"><div class="stat-num" id="cnt-total"  style="color:#94a3b8">—</div><div class="stat-lbl">符合</div></div>
+      <div class="stat"><div class="stat-num" id="cnt-danger" style="color:#f87171">—</div><div class="stat-lbl">破下軌</div></div>
+      <div class="stat"><div class="stat-num" id="cnt-near"   style="color:#fb923c">—</div><div class="stat-lbl">極接近</div></div>
+      <div class="stat"><div class="stat-num" id="cnt-app"    style="color:#facc15">—</div><div class="stat-lbl">接近中</div></div>
+    </div>
+  </div>
+</div>
+
+<div class="content">
+  <div id="actionStatus" style="background:#0a1628;border:1px solid #1e3a5f;border-radius:8px;padding:12px 16px;margin-bottom:14px;font-size:11px;">
+    <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">
+      <div style="display:flex;align-items:center;gap:10px">
+        <div id="actionDot" style="width:9px;height:9px;border-radius:50%;background:#475569;flex-shrink:0"></div>
+        <div>
+          <div id="actionLabel" style="color:#94a3b8;font-weight:600">— 掃描狀態</div>
+          <div id="actionSub" style="color:#334155;margin-top:2px">設定 GitHub 帳號後顯示即時狀態</div>
+        </div>
+      </div>
+      <div style="display:flex;gap:8px;align-items:center">
+        <div id="actionMeta" style="color:#334155;text-align:right;font-size:10px"></div>
+        <button onclick="checkActionStatus()" style="background:transparent;border:1px solid #1e293b;color:#475569;padding:3px 10px;border-radius:4px;cursor:pointer;font-size:11px;font-family:inherit">↻ 狀態</button>
+      </div>
+    </div>
+    <div style="margin-top:10px;padding-top:10px;border-top:1px solid #0f172a;display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+      <span style="color:#334155;white-space:nowrap">GitHub:</span>
+      <input id="ghOwner" placeholder="帳號名" style="background:#0f172a;border:1px solid #1e293b;color:#e2e8f0;padding:4px 8px;border-radius:4px;font-family:inherit;font-size:11px;width:110px;outline:none">
+      <span style="color:#334155">/</span>
+      <input id="ghRepo" placeholder="Repo 名" style="background:#0f172a;border:1px solid #1e293b;color:#e2e8f0;padding:4px 8px;border-radius:4px;font-family:inherit;font-size:11px;width:110px;outline:none">
+      <button onclick="saveGhConfig()" style="background:#1d4ed8;border:none;color:#fff;padding:4px 12px;border-radius:4px;cursor:pointer;font-size:11px;font-family:inherit;font-weight:600">儲存</button>
+      <span id="ghStatus" style="color:#334155;font-size:10px"></span>
+    </div>
+  </div>
+
+  <!-- 掃描進度條 -->
+  <div id="progressBar" style="display:none;background:#0a1628;border:1px solid #1e3a5f;border-radius:8px;padding:12px 16px;margin-bottom:14px;">
+    <div style="display:flex;justify-content:space-between;margin-bottom:6px;font-size:11px">
+      <span id="progressInfo" style="color:#64748b">掃描中…</span>
+      <span id="progressPct" style="color:#60a5fa;font-weight:700">0%</span>
+    </div>
+    <div style="background:#0f172a;border-radius:4px;height:6px;overflow:hidden">
+      <div id="progressFill" style="height:100%;background:linear-gradient(90deg,#3b82f6,#7c3aed);border-radius:4px;transition:width 0.5s;width:0%"></div>
+    </div>
+  </div>
+
+  <div class="ai-box" id="aiBox">
+    <div class="ai-label">✦ AI 技術分析報告</div>
+    <div class="ai-text" id="aiText"></div>
+  </div>
+
+  <div style="overflow-x:auto">
+    <table>
+      <thead>
+        <tr>
+          <th class="l">#</th><th class="l">代號</th><th class="l">指數</th>
+          <th>現價</th><th>布林下軌</th><th>SMA(20)</th>
+          <th>%B</th><th>漲跌幅</th><th>波動度</th><th>離下軌</th>
+          <th class="l" style="padding-left:10px;min-width:120px">%B 進度</th>
+        </tr>
+      </thead>
+      <tbody id="tbody">
+        <tr><td colspan="11" style="text-align:center;padding:50px;color:#1e293b">載入中…</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="legend">
+    <div class="legend-item"><div class="legend-dot" style="background:#f87171"></div>跌破下軌</div>
+    <div class="legend-item"><div class="legend-dot" style="background:#fb923c"></div>極度接近</div>
+    <div class="legend-item"><div class="legend-dot" style="background:#facc15"></div>接近下軌</div>
+    <div class="legend-item"><div class="legend-dot" style="background:#4ade80"></div>正常區間</div>
+    <div style="margin-left:8px;display:flex;gap:6px;align-items:center">
+      <span class="idx-badge dj">DJ</span>道瓊
+      <span class="idx-badge nq">NQ</span>納斯達克
+      <span class="idx-badge sp">SP</span>標普500
+    </div>
+  </div>
+  <div class="note">
+    📡 數據：Twelve Data ｜ ⏰ GitHub Actions 每小時自動更新 ｜ 布林通道 = SMA(20) ± 2σ<br>
+    ⚠ 僅供技術分析參考，不構成投資建議。
+  </div>
+</div>
+
+<script>
+let allStocks = [];
+let threshold = 20;
+let sortBy    = 'pctB';
+let activeIdx = new Set(['DJ','NQ','SP']);
+
+// ── Progress polling ──
+let progressTimer = null;
+
+async function checkProgress() {
+  clearTimeout(progressTimer);
+  try {
+    const res  = await fetch('progress.json?t=' + Date.now());
+    const data = await res.json();
+    const bar  = document.getElementById('progressBar');
+    if (!bar) return;
+
+    if (data.status === 'scanning' && data.total > 0) {
+      const pct = Math.round(data.done / data.total * 100);
+      bar.style.display = 'block';
+      document.getElementById('progressFill').style.width  = pct + '%';
+      document.getElementById('progressInfo').textContent  =
+        `已掃描 ${data.done} / ${data.total} 檔　成功 ${data.successful} 檔　失敗 ${data.errors} 檔`;
+      document.getElementById('progressPct').textContent = pct + '%';
+      // Keep polling every 15s while scanning
+      progressTimer = setTimeout(checkProgress, 15000);
+    } else if (data.status === 'done') {
+      const pct = 100;
+      bar.style.display = 'block';
+      document.getElementById('progressFill').style.width  = '100%';
+      document.getElementById('progressInfo').textContent  =
+        `掃描完成　共 ${data.successful} 檔成功　${data.errors} 檔失敗`;
+      document.getElementById('progressPct').textContent = '100%';
+      // Reload data now that scan is done
+      loadData();
+    } else {
+      bar.style.display = 'none';
+    }
+  } catch(e) { /* progress.json not ready yet */ }
+}
+
+// ── GitHub config ──
+function saveGhConfig() {
+  const owner = document.getElementById('ghOwner').value.trim();
+  const repo  = document.getElementById('ghRepo').value.trim();
+  if (!owner || !repo) { alert('請輸入帳號和 Repo 名稱'); return; }
+  localStorage.setItem('gh_owner', owner);
+  localStorage.setItem('gh_repo',  repo);
+  document.getElementById('ghStatus').textContent = '✓ 已儲存';
+  document.getElementById('ghStatus').style.color = '#4ade80';
+  checkActionStatus();
+}
+
+// ── GitHub Actions status ──
+async function checkActionStatus() {
+  const owner = localStorage.getItem('gh_owner');
+  const repo  = localStorage.getItem('gh_repo');
+  if (!owner || !repo) return;
+
+  const dot   = document.getElementById('actionDot');
+  const label = document.getElementById('actionLabel');
+  const sub   = document.getElementById('actionSub');
+  const meta  = document.getElementById('actionMeta');
+
+  label.textContent = '查詢中…';
+  try {
+    const res  = await fetch(`https://api.github.com/repos/${owner}/${repo}/actions/runs?per_page=1`);
+    const data = await res.json();
+    const run  = data.workflow_runs?.[0];
+
+    if (!run) {
+      dot.style.background = '#475569';
+      label.textContent = '尚無執行紀錄';
+      sub.textContent   = '請先在 Actions 頁面手動觸發一次';
+      return;
+    }
+
+    const started = new Date(run.created_at);
+    const updated = new Date(run.updated_at);
+    const duration = Math.round((updated - started) / 1000);
+    const timeStr = started.toLocaleString('zh-TW', { timeZone: 'Asia/Hong_Kong' });
+
+    if (run.status === 'in_progress' || run.status === 'queued') {
+      dot.style.background = '#22c55e';
+      dot.style.boxShadow  = '0 0 8px #22c55e';
+      dot.style.animation  = 'pulse 1.2s infinite';
+      label.style.color    = '#4ade80';
+      label.textContent    = '🔄 正在掃描中…';
+      sub.textContent      = `開始於 ${timeStr}（HKT）`;
+      meta.textContent     = '約需 20 分鐘，完成後自動更新';
+      checkProgress();
+      setTimeout(checkActionStatus, 30000);
+    } else if (run.conclusion === 'success') {
+      dot.style.background = '#22c55e';
+      dot.style.boxShadow  = '0 0 5px #22c55e';
+      dot.style.animation  = '';
+      label.style.color    = '#4ade80';
+      label.textContent    = '✓ 上次掃描成功';
+      sub.textContent      = `完成於 ${timeStr}（HKT）`;
+      meta.textContent     = `耗時 ${duration} 秒`;
+    } else if (run.conclusion === 'failure') {
+      dot.style.background = '#f87171';
+      dot.style.boxShadow  = '0 0 5px #f87171';
+      dot.style.animation  = '';
+      label.style.color    = '#f87171';
+      label.textContent    = '✗ 上次掃描失敗';
+      sub.textContent      = `失敗於 ${timeStr}（HKT）`;
+      meta.textContent     = '請檢查 Actions 頁面';
+    } else {
+      dot.style.background = '#f59e0b';
+      dot.style.animation  = '';
+      label.style.color    = '#fbbf24';
+      label.textContent    = `狀態：${run.conclusion || run.status}`;
+      sub.textContent      = timeStr + '（HKT）';
+    }
+  } catch(e) {
+    label.textContent = '無法查詢狀態';
+    sub.textContent   = '請確認帳號/Repo 名稱正確';
+  }
+}
+
+async function loadData() {
+  document.getElementById('updateTime').textContent = '載入中…';
+  try {
+    const res  = await fetch('data.json?t=' + Date.now());
+    const data = await res.json();
+    allStocks  = data.stocks || [];
+    document.getElementById('updateTime').textContent =
+      `伺服器更新：${data.updatedAtStr || '尚未掃描'} ｜ 共 ${data.count} 檔`;
+    document.getElementById('aiBtn').disabled = allStocks.length === 0;
+    renderTable();
+  } catch(e) {
+    document.getElementById('updateTime').textContent = '載入失敗：' + e.message;
+  }
+}
+
+function toggleIdx(idx) {
+  if (activeIdx.has(idx)) {
+    if (activeIdx.size === 1) return;
+    activeIdx.delete(idx);
+    document.getElementById('f-'+idx).classList.remove('active');
+  } else {
+    activeIdx.add(idx);
+    document.getElementById('f-'+idx).classList.add('active');
+  }
+  renderTable();
+}
+
+function onThresh(v) {
+  threshold = +v;
+  document.getElementById('threshLabel').textContent = v+'%';
+  renderTable();
+}
+
+function setSort(k) {
+  sortBy = k;
+  document.querySelectorAll('.sort-btn').forEach(b=>b.classList.remove('active'));
+  document.getElementById('sort-'+k).classList.add('active');
+  renderTable();
+}
+
+function pBc(p)  { return p<0?'#f87171':p<0.1?'#fb923c':p<0.2?'#facc15':'#4ade80'; }
+function chgC(c) { return c<-3?'#f87171':c<-1?'#fb923c':c<0?'#facc15':'#4ade80'; }
+function f2(n)   { return typeof n==='number'?n.toFixed(2):'—'; }
+
+function renderTable() {
+  const filtered = allStocks
+    .filter(s => (s.tags||[]).some(t => activeIdx.has(t)) && s.pctB*100 <= threshold)
+    .sort((a,b) => sortBy==='pctB'?a.pctB-b.pctB:sortBy==='chg'?a.chg-b.chg:b.bw-a.bw);
+
+  document.getElementById('cnt-total').textContent  = filtered.length;
+  document.getElementById('cnt-danger').textContent = filtered.filter(s=>s.pctB<0).length;
+  document.getElementById('cnt-near').textContent   = filtered.filter(s=>s.pctB>=0&&s.pctB<0.1).length;
+  document.getElementById('cnt-app').textContent    = filtered.filter(s=>s.pctB>=0.1).length;
+
+  const tbody = document.getElementById('tbody');
+  if (!filtered.length && allStocks.length>0) {
+    tbody.innerHTML = '<tr><td colspan="11" style="text-align:center;padding:40px;color:#334155">無符合條件，請調高 %B 閾值</td></tr>';
+    return;
+  }
+  if (!filtered.length) { tbody.innerHTML = '<tr><td colspan="11" style="text-align:center;padding:40px;color:#1e293b">等待數據…</td></tr>'; return; }
+
+  tbody.innerHTML = filtered.map((s,i)=>{
+    const cl   = Math.max(0,Math.min(1,s.pctB));
+    const bc   = pBc(s.pctB);
+    const dist = (s.price-s.lower)/s.lower*100;
+    const rowBg = s.pctB<0?'rgba(248,113,113,0.07)':s.pctB<0.1?'rgba(251,146,60,0.05)':'transparent';
+    const brk  = s.pctB<0?'<span class="break-badge">破位</span>':'';
+    const tags = (s.tags||[]).map(t=>`<span class="idx-badge ${t.toLowerCase()}">${t}</span>`).join('');
+    return `<tr style="background:${rowBg}">
+      <td class="l" style="color:#334155">${i+1}</td>
+      <td class="l">${brk}<a href="https://finance.yahoo.com/quote/${s.ticker}" target="_blank" class="ticker-link">${s.ticker}</a></td>
+      <td class="l">${tags}</td>
+      <td style="color:#e2e8f0;font-weight:600">$${f2(s.price)}</td>
+      <td style="color:#f87171">$${f2(s.lower)}</td>
+      <td style="color:#64748b">$${f2(s.sma)}</td>
+      <td style="color:${bc};font-weight:700">${(s.pctB*100).toFixed(1)}%</td>
+      <td style="color:${chgC(s.chg)};font-weight:600">${s.chg>=0?'+':''}${f2(s.chg)}%</td>
+      <td style="color:#475569">${f2(s.bw)}%</td>
+      <td style="color:${dist<2?'#f87171':'#475569'}">${dist<0?'':'+'}${f2(dist)}%</td>
+      <td style="padding:8px 14px 8px 10px;text-align:left">
+        <div class="band-bar">
+          <div class="band-fill" style="width:${cl*100}%;background:${bc}"></div>
+          <div class="band-dot" style="left:${cl*100}%;background:${bc};box-shadow:0 0 5px ${bc}"></div>
+        </div>
+        <div class="band-labels"><span>下軌</span><span>中軌</span><span>上軌</span></div>
+      </td>
+    </tr>`;
+  }).join('');
+}
+
+async function runAI() {
+  const filtered = allStocks.filter(s=>(s.tags||[]).some(t=>activeIdx.has(t))&&s.pctB*100<=threshold).slice(0,20);
+  if (!filtered.length) return;
+  document.getElementById('aiBtn').disabled = true;
+  document.getElementById('aiBtn').textContent = '分析中…';
+  const aiBox = document.getElementById('aiBox');
+  const aiText = document.getElementById('aiText');
+  aiBox.style.display = 'block';
+  aiText.textContent = '正在分析…';
+  const summary = filtered.map(s=>
+    `${s.ticker}[${(s.tags||[]).join('/')}]: $${f2(s.price)}, 下軌$${f2(s.lower)}, %B=${(s.pctB*100).toFixed(1)}%, 漲跌=${f2(s.chg)}%, 波動=${f2(s.bw)}%`
+  ).join('\n');
+  try {
+    const res = await fetch('https://api.anthropic.com/v1/messages',{
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ model:'claude-sonnet-4-20250514', max_tokens:1000,
+        messages:[{role:'user',content:`你是專業美股技術分析師。%B低於${threshold}%的股票：\n\n${summary}\n\n請用繁體中文（250字內）：\n1. 最值得關注3-5檔及原因\n2. 各指數賣壓分布\n3. 短線操作建議`}]
+      })
+    });
+    const d = await res.json();
+    aiText.textContent = d.content?.[0]?.text || '失敗';
+  } catch(e) { aiText.textContent = '錯誤：'+e.message; }
+  document.getElementById('aiBtn').disabled = false;
+  document.getElementById('aiBtn').textContent = '✦ AI 解讀';
+}
+
+// Init
+(function() {
+  const owner = localStorage.getItem('gh_owner') || '';
+  const repo  = localStorage.getItem('gh_repo')  || '';
+  if (owner) { document.getElementById('ghOwner').value = owner; }
+  if (repo)  { document.getElementById('ghRepo').value  = repo; }
+  if (owner && repo) {
+    document.getElementById('ghStatus').textContent = '✓ 已儲存';
+    document.getElementById('ghStatus').style.color = '#4ade80';
+    checkActionStatus();
+    setInterval(checkActionStatus, 30000); // re-check every 30s
+  }
+})();
+
+loadData();
+setInterval(loadData, 5 * 60 * 1000);
+</script>
+</body>
+</html>
