@@ -1,31 +1,65 @@
-import os, json, math, time, urllib.request, urllib.parse
+import os, json, math, time, urllib.request, urllib.error
 from datetime import datetime, timezone
 
-API_KEY   = os.environ.get("TD_API_KEY", "")
-GH_TOKEN  = os.environ.get("GITHUB_TOKEN", "")  # auto-provided by Actions
-GIST_ID   = os.environ.get("GIST_ID", "")        # set as repo secret
+API_KEY  = os.environ.get("TD_API_KEY", "")
+GH_TOKEN = os.environ.get("GITHUB_TOKEN", "")
+GIST_ID  = os.environ.get("GIST_ID", "")
 
-TICKERS = [
-    ("AAPL", ["DJ","NQ","SP"]), ("MSFT", ["DJ","NQ","SP"]),
-    ("NVDA", ["NQ","SP"]),      ("AMZN", ["DJ","NQ","SP"]),
-    ("META", ["NQ","SP"]),      ("TSLA", ["NQ","SP"]),
-    ("GOOGL",["NQ","SP"]),      ("JPM",  ["DJ","SP"]),
-    ("V",    ["DJ","SP"]),      ("UNH",  ["DJ","SP"]),
-    ("XOM",  ["SP"]),           ("JNJ",  ["DJ","SP"]),
-    ("WMT",  ["DJ","SP"]),      ("PG",   ["DJ","SP"]),
-    ("HD",   ["DJ","SP"]),      ("CVX",  ["DJ","SP"]),
-    ("MRK",  ["DJ","SP"]),      ("KO",   ["DJ","SP"]),
-    ("MCD",  ["DJ","SP"]),      ("GS",   ["DJ","SP"]),
+DJ = ["AAPL","AMGN","AXP","BA","CAT","CRM","CSCO","CVX","DIS","DOW",
+      "GS","HD","HON","IBM","JNJ","JPM","KO","MCD","MMM","MRK",
+      "MSFT","NKE","PG","SHW","TRV","UNH","V","VZ","WMT","AMZN"]
+
+NQ = ["AAPL","MSFT","NVDA","AMZN","META","TSLA","GOOGL","GOOG","AVGO","COST",
+      "NFLX","TMUS","AMD","QCOM","INTU","TXN","AMAT","MU","ISRG","BKNG",
+      "REGN","VRTX","PANW","LRCX","ADI","MRVL","KLAC","CDNS","SNPS","ORLY",
+      "CRWD","FTNT","ASML","MELI","PYPL","ADP","MAR","CTAS","TEAM","DXCM",
+      "MNST","FAST","PAYX","IDXX","PCAR","ROST","ODFL","GEHC","KDP","FANG",
+      "EXC","XEL","CTSH","BIIB","ILMN","DLTR","ZS","NXPI","ANSS","VRSK",
+      "ON","ALGN","TTWO","LULU","SBUX","PDD","ABNB","ARM","SMCI","MSTR",
+      "PLTR","HOOD","RBLX","DOCU","ZM","OKTA","DDOG","MDB","SNOW","WDAY"]
+
+SP = [
+    "NOW","HUBS","NET","TTD","COIN","SHOP","SQ","ACN","ORCL","EPAM",
+    "GLOB","LDOS","BAH","SAIC","MSCI","SPGI","MCO","FIS","FISV","GPN",
+    "ADSK","PTC","ANSS","PAYC","PCTY","BILL","AFRM","SOFI","UPST","INTC",
+    "JPM","BAC","WFC","MS","BLK","C","AXP","SCHW","COF","USB",
+    "PNC","TFC","CB","MMC","AON","MET","PRU","AFL","ALL","ICE",
+    "CME","CBOE","NDAQ","RJF","TROW","BX","KKR","APO","CG","ARES",
+    "UNH","LLY","JNJ","ABT","MRK","TMO","DHR","SYK","BSX","MDT",
+    "EW","IQV","HCA","CNC","ELV","CI","HUM","MRNA","BNTX","GILD",
+    "ALNY","NBIX","EXAS","VEEV","ZBH","BAX","STE","HOLX","PODD","BIO",
+    "AMZN","COST","WMT","TGT","HD","LOW","MCD","CMG","YUM","DPZ",
+    "DASH","HLT","MAR","MGM","WYNN","RCL","CCL","DAL","UAL","AAL",
+    "CPRT","AZO","ORLY","GPC","TSCO","ULTA","BBY","DKS","FIVE","WSM",
+    "XOM","CVX","COP","EOG","SLB","MPC","VLO","PSX","HES","DVN",
+    "OXY","APA","HAL","BKR","EQT","AR","RRC","CNX","CHK","NOV",
+    "CAT","DE","HON","RTX","LMT","NOC","GD","ETN","EMR","GE",
+    "UPS","FDX","CSX","NSC","UNP","BA","MMM","ITW","PH","ROK",
+    "AME","ROP","CARR","OTIS","TT","JCI","PWR","SWK","LHX","TDG",
+    "GOOGL","META","NFLX","DIS","CMCSA","T","VZ","CHTR","EA","SNAP",
+    "PINS","MTCH","LYV","PARA","FOXA","WMG","NYT","IAC","TTWO","ATVI",
+    "NEE","DUK","SO","D","AEP","PCG","XEL","ES","AWK","WEC",
+    "LIN","APD","SHW","ECL","NEM","FCX","NUE","VMC","ALB","BALL",
+    "PKG","IP","CF","MOS","DD","PLD","AMT","EQIX","CCI","SPG",
+    "O","WELL","AVB","EQR","DLR","VTR","PSA","NEE","DUK","SO",
+    "D","AEP","PCG","XEL","ES","AWK","WEC","NI","ATO","LNT",
+    "SPY","QQQ","IWM","DIA","XLF","XLK","XLE","XLV","XLI","XLC",
+    "SOXX","ARKK","GLD","TLT","EEM","UBER","LYFT","RIVN","NIO","BIDU",
 ]
 
+def build_list():
+    tag_map = {}
+    for t in DJ: tag_map.setdefault(t, set()).add("DJ")
+    for t in NQ: tag_map.setdefault(t, set()).add("NQ")
+    for t in SP: tag_map.setdefault(t, set()).add("SP")
+    # Remove tickers with dots or invalid chars
+    return [(t, sorted(tags)) for t, tags in tag_map.items() if '.' not in t]
+
 def update_gist(progress_data, stock_data=None):
-    """Update Gist directly — no CDN cache, immediately visible."""
     if not GIST_ID or not GH_TOKEN:
         print("  [gist] GIST_ID or GITHUB_TOKEN not set, skipping")
         return
-    files = {
-        "progress.json": {"content": json.dumps(progress_data, separators=(",", ":"))}
-    }
+    files = {"progress.json": {"content": json.dumps(progress_data, separators=(",", ":"))}}
     if stock_data is not None:
         files["data.json"] = {"content": json.dumps(stock_data, separators=(",", ":"))}
     payload = json.dumps({"files": files}).encode()
@@ -40,13 +74,11 @@ def update_gist(progress_data, stock_data=None):
     )
     try:
         with urllib.request.urlopen(req, timeout=15) as r:
-            body = r.read().decode()[:200]
             print(f"  [gist] updated OK ({r.status})")
     except urllib.error.HTTPError as e:
-        body = e.read().decode()[:300]
-        print(f"  [gist] HTTP {e.code} error: {body}")
+        print(f"  [gist] HTTP {e.code}: {e.read().decode()[:200]}")
     except Exception as e:
-        print(f"  [gist] update failed: {e}")
+        print(f"  [gist] error: {e}")
 
 def write_progress(done, total, stocks, errors, status):
     now = datetime.now(timezone.utc)
@@ -55,6 +87,14 @@ def write_progress(done, total, stocks, errors, status):
         "successful": len(stocks), "errors": len(errors),
         "updatedAt": now.isoformat(),
         "updatedAtStr": now.strftime("%Y-%m-%d %H:%M UTC"),
+    }
+
+def make_stock_data(stocks, errors):
+    now = datetime.now(timezone.utc)
+    return {
+        "updatedAt": now.isoformat(),
+        "updatedAtStr": now.strftime("%Y-%m-%d %H:%M UTC"),
+        "count": len(stocks), "errors": errors, "stocks": stocks
     }
 
 def fetch_batch(tickers):
@@ -89,24 +129,26 @@ def fetch_batch(tickers):
     return results
 
 def main():
-    total, stocks, errors = len(TICKERS), [], []
+    watchlist = build_list()
+    tag_map   = {t: tags for t, tags in watchlist}
+    tickers   = [t for t, _ in watchlist]
+    total     = len(tickers)
+    stocks, errors = [], []
     BATCH = 8
 
     print(f"=== CONFIG CHECK ===")
     print(f"  TD_API_KEY : {'SET' if API_KEY else 'NOT SET ⚠'}")
-    print(f"  GIST_ID    : {GIST_ID if GIST_ID else 'NOT SET ⚠'}")
+    print(f"  GIST_ID    : {'SET' if GIST_ID else 'NOT SET ⚠'}")
     print(f"  GITHUB_TOKEN: {'SET' if GH_TOKEN else 'NOT SET ⚠'}")
     print(f"  Total tickers: {total}")
     print(f"====================")
 
-    # Push initial state
+    # Reset Gist to scanning=0 immediately
     prog = write_progress(0, total, stocks, errors, "scanning")
     update_gist(prog)
 
     for i in range(0, total, BATCH):
-        batch_items   = TICKERS[i:i+BATCH]
-        batch_tickers = [t for t,_ in batch_items]
-        tag_map       = {t: tags for t,tags in batch_items}
+        batch_tickers = tickers[i:i+BATCH]
         try:
             results = fetch_batch(batch_tickers)
             for s in results:
@@ -118,34 +160,21 @@ def main():
             print(f"  [{min(i+BATCH,total)}/{total}] ERROR: {e}")
 
         done = min(i+BATCH, total)
-        now  = datetime.now(timezone.utc)
         prog = write_progress(done, total, stocks, errors, "scanning")
-        stock_data = {
-            "updatedAt": now.isoformat(),
-            "updatedAtStr": now.strftime("%Y-%m-%d %H:%M UTC"),
-            "count": len(stocks), "errors": errors, "stocks": stocks
-        }
-        # Update Gist immediately — no CDN delay
-        update_gist(prog, stock_data)
+        update_gist(prog, make_stock_data(stocks, errors))
 
         if i+BATCH < total:
             print(f"  waiting 61s...")
             time.sleep(61)
 
     # Final
-    now = datetime.now(timezone.utc)
-    prog = write_progress(total, total, stocks, errors, "done")
-    stock_data = {
-        "updatedAt": now.isoformat(),
-        "updatedAtStr": now.strftime("%Y-%m-%d %H:%M UTC"),
-        "count": len(stocks), "errors": errors, "stocks": stocks
-    }
+    prog       = write_progress(total, total, stocks, errors, "done")
+    stock_data = make_stock_data(stocks, errors)
     update_gist(prog, stock_data)
 
-    # Also save to repo for GitHub Pages fallback
-    with open("data.json","w") as f: json.dump(stock_data, f, separators=(",",":"))
-    with open("progress.json","w") as f: json.dump(prog, f, separators=(",",":"))
-    print(f"\nDone. {len(stocks)} stocks saved.")
+    with open("data.json",    "w") as f: json.dump(stock_data, f, separators=(",",":"))
+    with open("progress.json","w") as f: json.dump(prog,       f, separators=(",",":"))
+    print(f"\nDone. {len(stocks)}/{total} stocks saved, {len(errors)} errors.")
 
 if __name__ == "__main__":
     main()
