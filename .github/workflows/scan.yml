@@ -16,7 +16,7 @@ jobs:
         env:
           TD_API_KEY:   ${{ secrets.TD_API_KEY }}
           GIST_ID:      ${{ secrets.GIST_ID }}
-          GITHUB_TOKEN: ${{ github.token }}
+          GITHUB_TOKEN: ${{ secrets.GH_PAT }}
         run: python3 scan.py
 
       - name: Save final results to repo
