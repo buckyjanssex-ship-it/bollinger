@@ -225,6 +225,8 @@ function saveGist() {
   const id = document.getElementById('gistInput').value.trim();
   if (!id) { alert('請輸入 Gist ID'); return; }
   localStorage.setItem('gist_id', id);
+  localStorage.removeItem('gist_user'); // reset cached username
+  gistUser = '';
   document.getElementById('gistMsg').textContent = '✓ 已儲存，開始追蹤…';
   document.getElementById('gistMsg').style.color = '#4ade80';
   startPolling();
@@ -234,6 +236,25 @@ function saveGist() {
 function startPolling() {
   clearTimeout(pollTimer);
   pollGist();
+}
+
+// Cache gist username to avoid extra API calls
+let gistUser = localStorage.getItem('gist_user') || '';
+
+async function getGistUser(id) {
+  if (gistUser) return gistUser;
+  // One-time API call to get username from gist
+  try {
+    const r = await fetch(`https://api.github.com/gists/${id}`, {
+      headers: { 'Accept': 'application/vnd.github+json' }
+    });
+    if (r.ok) {
+      const g = await r.json();
+      gistUser = g.owner?.login || '';
+      if (gistUser) localStorage.setItem('gist_user', gistUser);
+    }
+  } catch(e) {}
+  return gistUser;
 }
 
 async function pollGist() {
@@ -247,17 +268,11 @@ async function pollGist() {
   const prog  = document.getElementById('progWrap');
 
   try {
-    const res  = await fetch(`https://api.github.com/gists/${id}`, {
-      headers: { 'Accept': 'application/vnd.github+json' },
-      cache: 'no-store'
-    });
-    if (!res.ok) throw new Error(`Gist API ${res.status}`);
-    const gist = await res.json();
-
-    // ── Read progress.json ──
-    const pRaw = gist.files?.['progress.json']?.content;
-    if (!pRaw) throw new Error('progress.json 不在 Gist 中');
-    const p = JSON.parse(pRaw);
+    // Use raw URL — no API auth needed, no rate limit
+    const base = `https://gist.githubusercontent.com/${await getGistUser(id)}/${id}/raw`;
+    const pRes = await fetch(`${base}/progress.json?t=${Date.now()}`, { cache: 'no-store' });
+    if (!pRes.ok) throw new Error(`raw fetch ${pRes.status}`);
+    const p = await pRes.json();
 
     if (p.status === 'scanning' && p.total > 0) {
       const pct = Math.round(p.done / p.total * 100);
@@ -273,16 +288,18 @@ async function pollGist() {
       document.getElementById('progPct').textContent = pct + '%';
 
       // Load partial stock data
-      const dRaw = gist.files?.['data.json']?.content;
-      if (dRaw && p.successful !== lastDone) {
+      if (p.successful !== lastDone) {
         lastDone = p.successful;
-        const d = JSON.parse(dRaw);
+        const dRes = await fetch(`${base}/data.json?t=${Date.now()}`, { cache: 'no-store' });
+        const d = dRes.ok ? await dRes.json() : null;
+        if (d) {
         allStocks = d.stocks || [];
-        localStorage.setItem('bb_stocks', JSON.stringify(d));
-        document.getElementById('updateTime').textContent =
-          `掃描中（部分結果）：${d.updatedAtStr} ｜ 已有 ${d.count} 檔`;
-        document.getElementById('aiBtn').disabled = false;
-        renderTable();
+          localStorage.setItem('bb_stocks', JSON.stringify(d));
+          document.getElementById('updateTime').textContent =
+            `掃描中（部分結果）：${d.updatedAtStr} ｜ 已有 ${d.count} 檔`;
+          document.getElementById('aiBtn').disabled = false;
+          renderTable();
+        }
       }
       pollTimer = setTimeout(pollGist, 12000); // poll every 12s while scanning
 
@@ -295,16 +312,18 @@ async function pollGist() {
       prog.style.display = 'none';
 
       // Load final data
-      const dRaw = gist.files?.['data.json']?.content;
-      if (dRaw && p.successful !== lastDone) {
+      if (p.successful !== lastDone) {
         lastDone = p.successful;
-        const d = JSON.parse(dRaw);
+        const dRes = await fetch(`${base}/data.json?t=${Date.now()}`, { cache: 'no-store' });
+        const d = dRes.ok ? await dRes.json() : null;
+        if (d) {
         allStocks = d.stocks || [];
-        localStorage.setItem('bb_stocks', JSON.stringify(d));
-        document.getElementById('updateTime').textContent =
-          `最後更新：${d.updatedAtStr} ｜ 共 ${d.count} 檔`;
-        document.getElementById('aiBtn').disabled = false;
-        renderTable();
+          localStorage.setItem('bb_stocks', JSON.stringify(d));
+          document.getElementById('updateTime').textContent =
+            `最後更新：${d.updatedAtStr} ｜ 共 ${d.count} 檔`;
+          document.getElementById('aiBtn').disabled = false;
+          renderTable();
+        }
       }
       pollTimer = setTimeout(pollGist, 30000); // keep polling in case new scan starts
 
