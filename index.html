@@ -249,8 +249,8 @@ async function pollGist() {
         document.getElementById('aiBtn').disabled = allStocks.length === 0;
         renderTable();
       }
-      // Stop polling
-      clearTimeout(pollTimer);
+      // Keep polling every 30s in case a new scan starts
+      pollTimer = setTimeout(pollGist, 30000);
 
     } else {
       dot.style.background = '#475569';
