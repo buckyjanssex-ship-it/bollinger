@@ -238,8 +238,7 @@ function saveGist() {
   const id = document.getElementById('gistInput').value.trim();
   if (!id) { alert('請輸入 Gist ID'); return; }
   localStorage.setItem('gist_id', id);
-  localStorage.removeItem('gist_user'); // reset cached username
-  gistUser = '';
+  localStorage.removeItem('gist_user'); // reset so username is re-fetched via API
   document.getElementById('gistMsg').textContent = '✓ 已儲存，開始追蹤…';
   document.getElementById('gistMsg').style.color = '#4ade80';
   startPolling();
@@ -251,27 +250,9 @@ function startPolling() {
   pollGist();
 }
 
-// Cache gist username to avoid extra API calls
-let gistUser = localStorage.getItem('gist_user') || '';
-
-async function getGistUser(id) {
-  if (gistUser) return gistUser;
-  // One-time API call to get username from gist
-  try {
-    const r = await fetch(`https://api.github.com/gists/${id}`, {
-      headers: { 'Accept': 'application/vnd.github+json' }
-    });
-    if (r.ok) {
-      const g = await r.json();
-      gistUser = g.owner?.login || '';
-      if (gistUser) localStorage.setItem('gist_user', gistUser);
-    }
-  } catch(e) {}
-  return gistUser;
-}
-
 async function pollGist() {
-  const id = localStorage.getItem('gist_id');
+  const id       = localStorage.getItem('gist_id');
+  const username = localStorage.getItem('gist_user') || '';
   if (!id) return;
 
   const dot   = document.getElementById('statusDot');
@@ -281,11 +262,33 @@ async function pollGist() {
   const prog  = document.getElementById('progWrap');
 
   try {
-    // Use raw URL — no API auth needed, no rate limit
-    const base = `https://gist.githubusercontent.com/${await getGistUser(id)}/${id}/raw`;
-    const pRes = await fetch(`${base}/progress.json?t=${Date.now()}`, { cache: 'no-store' });
-    if (!pRes.ok) throw new Error(`raw fetch ${pRes.status}`);
-    const p = await pRes.json();
+    let p;
+    // Strategy 1: use stored username for raw URL (fastest, no rate limit)
+    if (username) {
+      const base = `https://gist.githubusercontent.com/${username}/${id}/raw`;
+      const pRes = await fetch(`${base}/progress.json?t=${Date.now()}`, { cache: 'no-store' });
+      if (pRes.ok) {
+        p = await pRes.json();
+      } else {
+        // Username may be wrong, clear it and fall through to API
+        localStorage.removeItem('gist_user');
+      }
+    }
+    // Strategy 2: use GitHub API (auto-gets username, store it for next time)
+    if (!p) {
+      const apiRes = await fetch(`https://api.github.com/gists/${id}`, {
+        headers: { 'Accept': 'application/vnd.github+json' },
+        cache: 'no-store'
+      });
+      if (!apiRes.ok) throw new Error(`Gist API ${apiRes.status}`);
+      const gist = await apiRes.json();
+      // Cache the username for future raw URL calls
+      const user = gist.owner?.login || '';
+      if (user) localStorage.setItem('gist_user', user);
+      const pRaw = gist.files?.['progress.json']?.content;
+      if (!pRaw) throw new Error('progress.json 不在 Gist 中');
+      p = JSON.parse(pRaw);
+    }
 
     if (p.status === 'scanning' && p.total > 0) {
       const pct = Math.round(p.done / p.total * 100);
@@ -303,8 +306,13 @@ async function pollGist() {
       // Load partial stock data
       if (p.successful !== lastDone) {
         lastDone = p.successful;
-        const dRes = await fetch(`${base}/data.json?t=${Date.now()}`, { cache: 'no-store' });
-        const d = dRes.ok ? await dRes.json() : null;
+        const u2 = localStorage.getItem('gist_user') || username;
+        const base2 = u2 ? `https://gist.githubusercontent.com/${u2}/${id}/raw` : null;
+        let d = null;
+        if (base2) {
+          const dRes = await fetch(`${base2}/data.json?t=${Date.now()}`, { cache: 'no-store' });
+          if (dRes.ok) d = await dRes.json();
+        }
         if (d) {
         allStocks = d.stocks || [];
           localStorage.setItem('bb_stocks', JSON.stringify(d));
@@ -327,8 +335,13 @@ async function pollGist() {
       // Load final data
       if (p.successful !== lastDone) {
         lastDone = p.successful;
-        const dRes = await fetch(`${base}/data.json?t=${Date.now()}`, { cache: 'no-store' });
-        const d = dRes.ok ? await dRes.json() : null;
+        const u2 = localStorage.getItem('gist_user') || username;
+        const base2 = u2 ? `https://gist.githubusercontent.com/${u2}/${id}/raw` : null;
+        let d = null;
+        if (base2) {
+          const dRes = await fetch(`${base2}/data.json?t=${Date.now()}`, { cache: 'no-store' });
+          if (dRes.ok) d = await dRes.json();
+        }
         if (d) {
         allStocks = d.stocks || [];
           localStorage.setItem('bb_stocks', JSON.stringify(d));
