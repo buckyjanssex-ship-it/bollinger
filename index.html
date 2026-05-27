@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>美股布林通道下軌篩選器</title>
+<title>美股布林通道篩選器</title>
 <style>
 * { box-sizing: border-box; margin: 0; padding: 0; }
 body { background: #040d1a; color: #cbd5e1; font-family: 'Courier New', monospace; font-size: 13px; }
@@ -16,7 +16,7 @@ h1 { font-size: 19px; font-weight: 700; color: #f1f5f9; margin-bottom: 4px; }
 .btn-green  { background: #059669; }
 .btn:disabled { background: #1e293b !important; color: #475569 !important; cursor: not-allowed; }
 .controls { display: flex; gap: 12px; margin-top: 12px; flex-wrap: wrap; align-items: center; }
-.stat { text-align: center; min-width: 50px; }
+.stat { text-align: center; min-width: 60px; }
 .stat-num { font-size: 20px; font-weight: 700; line-height: 1; }
 .stat-lbl { font-size: 10px; color: #334155; margin-top: 2px; }
 .content { padding: 16px 20px; }
@@ -24,33 +24,28 @@ h1 { font-size: 19px; font-weight: 700; color: #f1f5f9; margin-bottom: 4px; }
 .box-green  { background: #0a1a0a; border: 1px solid #166534; }
 .box-blue   { background: #0a1628; border: 1px solid #1e3a5f; }
 .box-purple { background: #0f0a1e; border: 1px solid #6d28d9; }
-.box-title  { font-size: 11px; font-weight: 700; letter-spacing: 1px; margin-bottom: 10px; }
 .row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
 .inp { background: #0f172a; border: 1px solid #1e293b; color: #e2e8f0; padding: 6px 10px; border-radius: 4px; font-family: inherit; font-size: 12px; outline: none; }
 .inp:focus { border-color: #3b82f6; }
 .inp-wide { flex: 1; min-width: 200px; }
 .hint { color: #1e3a5f; font-size: 10px; margin-top: 6px; line-height: 1.6; }
-/* Status */
 .status-row { display: flex; align-items: center; gap: 10px; }
 .dot { width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0; background: #475569; }
 .dot-scan { background: #22c55e; box-shadow: 0 0 8px #22c55e; animation: pulse 1.2s infinite; }
 .dot-done { background: #22c55e; box-shadow: 0 0 4px #22c55e; }
-.dot-fail { background: #f87171; }
 @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.3} }
-/* Progress bar */
 .prog-bg { background: #0f172a; border-radius: 4px; height: 6px; margin: 8px 0 4px; overflow: hidden; }
 .prog-fill { height: 100%; background: linear-gradient(90deg,#3b82f6,#7c3aed); border-radius: 4px; transition: width 0.4s; }
-/* Table */
 table { width: 100%; border-collapse: collapse; }
 th { padding: 7px 10px; color: #334155; font-weight: 500; font-size: 10px; text-align: right; letter-spacing: 1px; white-space: nowrap; border-bottom: 1px solid #0f172a; }
 th.l { text-align: left; }
 td { padding: 8px 10px; border-bottom: 1px solid #0a0f1a; text-align: right; vertical-align: middle; }
 td.l { text-align: left; }
 tr:hover td { background: rgba(30,58,95,0.25) !important; }
-.band-bar { position: relative; height: 7px; background: #0f172a; border-radius: 4px; min-width: 90px; border: 1px solid #1e293b; }
-.band-fill { position: absolute; left: 0; top: 0; height: 100%; border-radius: 4px; }
-.band-dot { position: absolute; top: 50%; width: 9px; height: 9px; border-radius: 50%; border: 2px solid #040d1a; transform: translate(-50%,-50%); }
-.band-labels { display: flex; justify-content: space-between; font-size: 9px; color: #1e293b; margin-top: 2px; }
+.bar-wrap { position: relative; height: 7px; background: #0f172a; border-radius: 4px; width: 100px; border: 1px solid #1e293b; }
+.bar-fill { position: absolute; top: 0; height: 100%; border-radius: 4px; }
+.bar-dot  { position: absolute; top: 50%; width: 9px; height: 9px; border-radius: 50%; border: 2px solid #040d1a; transform: translate(-50%,-50%); }
+.bar-labels { display: flex; justify-content: space-between; font-size: 9px; color: #1e293b; margin-top: 2px; }
 .brk { font-size: 9px; background: #450a0a; color: #fca5a5; padding: 1px 5px; border-radius: 3px; margin-right: 3px; }
 .idx { font-size: 9px; padding: 1px 4px; border-radius: 3px; margin-right: 2px; font-weight: 600; }
 .dj { background:#1a2a4a; color:#60a5fa; }
@@ -59,6 +54,7 @@ tr:hover td { background: rgba(30,58,95,0.25) !important; }
 .sort-btn,.filter-btn { background:transparent; border:1px solid #1e293b; color:#475569; padding:3px 8px; border-radius:4px; cursor:pointer; font-size:11px; font-family:inherit; }
 .sort-btn.active { background:#1e3a5f; border-color:#3b82f6; color:#93c5fd; }
 .filter-btn.active { background:#052e16; border-color:#22c55e; color:#4ade80; }
+select.sel { background:#0f172a; border:1px solid #1e293b; color:#e2e8f0; padding:4px 8px; border-radius:4px; font-family:inherit; font-size:11px; outline:none; }
 input[type=range] { accent-color:#3b82f6; width:90px; vertical-align:middle; }
 .legend { display:flex; gap:14px; margin-top:14px; flex-wrap:wrap; padding-top:10px; border-top:1px solid #0f172a; }
 .legend-item { display:flex; align-items:center; gap:5px; font-size:10px; color:#334155; }
@@ -75,81 +71,83 @@ a.alink { color:#3b82f6; text-decoration:none; }
   <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:10px">
     <div>
       <div style="color:#334155;font-size:10px;letter-spacing:3px;margin-bottom:4px">◉ BOLLINGER BAND SCANNER · LIVE</div>
-      <h1>美股布林下軌篩選器</h1>
+      <h1>美股布林通道篩選器</h1>
       <div id="updateTime" style="color:#334155;font-size:11px;margin-top:3px">—</div>
     </div>
     <div style="display:flex;gap:8px;align-items:center">
-      <button class="btn btn-blue" onclick="loadFromGist()">↻ 重新整理</button>
+      <button class="btn btn-blue" onclick="startPolling()">↻ 重新整理</button>
       <button class="btn btn-purple" id="aiBtn" onclick="runAI()" disabled>✦ AI 解讀</button>
     </div>
   </div>
   <div class="controls">
+    <!-- Index filter -->
     <div style="display:flex;gap:5px;align-items:center">
       <span style="color:#475569;font-size:11px">指數</span>
       <button class="filter-btn active" id="f-DJ" onclick="toggleIdx('DJ')">🔵 道瓊</button>
       <button class="filter-btn active" id="f-NQ" onclick="toggleIdx('NQ')">🟣 納斯達克</button>
       <button class="filter-btn active" id="f-SP" onclick="toggleIdx('SP')">🟢 標普500</button>
     </div>
+    <!-- Lower band filter -->
     <div style="display:flex;align-items:center;gap:8px">
-      <span style="color:#475569;font-size:11px">%B 閾值</span>
-      <input type="range" min="5" max="50" value="20" id="threshSlider" oninput="onThresh(this.value)">
-      <span id="threshLabel" style="color:#60a5fa;font-weight:700;min-width:34px">20%</span>
+      <span style="color:#475569;font-size:11px">離下軌</span>
+      <select class="sel" id="lowerFilter" onchange="renderTable()">
+        <option value="100">全部</option>
+        <option value="10" selected>下軌10%內</option>
+        <option value="5">下軌5%內</option>
+        <option value="2">下軌2%內</option>
+        <option value="-1">已跌破下軌</option>
+      </select>
     </div>
-    <div style="display:flex;gap:5px;align-items:center">
-      <span style="color:#475569;font-size:11px">排序</span>
-      <button class="sort-btn active" id="sort-pctB"    onclick="setSort('pctB')">%B</button>
-      <button class="sort-btn"        id="sort-distSma" onclick="setSort('distSma')">離中線</button>
-      <button class="sort-btn"        id="sort-chg"     onclick="setSort('chg')">跌幅</button>
-      <button class="sort-btn"        id="sort-bw"      onclick="setSort('bw')">波動</button>
-    </div>
+    <!-- SMA filter -->
     <div style="display:flex;align-items:center;gap:8px">
-      <span style="color:#475569;font-size:11px">離中線篩選</span>
-      <select id="smaFilter" onchange="onSmaFilter(this.value)" style="background:#0f172a;border:1px solid #1e293b;color:#e2e8f0;padding:4px 8px;border-radius:4px;font-family:inherit;font-size:11px;outline:none">
+      <span style="color:#475569;font-size:11px">離中線</span>
+      <select class="sel" id="smaFilter" onchange="renderTable()">
         <option value="all">全部</option>
         <option value="below">低於中線</option>
         <option value="above">高於中線</option>
-        <option value="near2">距中線 ±2%</option>
-        <option value="near5">距中線 ±5%</option>
-        <option value="near10">距中線 ±10%</option>
+        <option value="2">中線±2%內</option>
+        <option value="5">中線±5%內</option>
       </select>
     </div>
+    <!-- Sort -->
+    <div style="display:flex;gap:5px;align-items:center">
+      <span style="color:#475569;font-size:11px">排序</span>
+      <button class="sort-btn active" id="sort-lower" onclick="setSort('lower')">離下軌</button>
+      <button class="sort-btn"       id="sort-sma"   onclick="setSort('sma')">離中線</button>
+      <button class="sort-btn"       id="sort-chg"   onclick="setSort('chg')">跌幅</button>
+    </div>
+    <!-- Stats -->
     <div style="display:flex;gap:12px;margin-left:auto">
       <div class="stat"><div class="stat-num" id="cnt-total"  style="color:#94a3b8">—</div><div class="stat-lbl">符合</div></div>
-      <div class="stat"><div class="stat-num" id="cnt-danger" style="color:#f87171">—</div><div class="stat-lbl">破下軌</div></div>
-      <div class="stat"><div class="stat-num" id="cnt-near"   style="color:#fb923c">—</div><div class="stat-lbl">極接近</div></div>
-      <div class="stat"><div class="stat-num" id="cnt-app"    style="color:#facc15">—</div><div class="stat-lbl">接近中</div></div>
+      <div class="stat"><div class="stat-num" id="cnt-break"  style="color:#f87171">—</div><div class="stat-lbl">跌破下軌</div></div>
+      <div class="stat"><div class="stat-num" id="cnt-near"   style="color:#fb923c">—</div><div class="stat-lbl">貼近下軌</div></div>
+      <div class="stat"><div class="stat-num" id="cnt-below"  style="color:#facc15">—</div><div class="stat-lbl">低於中線</div></div>
     </div>
   </div>
 </div>
 
 <div class="content">
-
-  <!-- ① Gist ID 設定 -->
+  <!-- Gist Setup -->
   <div class="box box-green" id="gistSetup">
-    <div class="box-title" style="color:#4ade80">🔑 設定 Gist ID（即時進度）</div>
+    <div style="color:#4ade80;font-size:11px;font-weight:700;margin-bottom:10px">🔑 設定 Gist ID（即時掃描進度）</div>
     <div class="row">
-      <input class="inp inp-wide" id="gistInput" placeholder="貼上你的 Public Gist ID，例如：2e63691aed70a5635a0e09155143019d">
+      <input class="inp inp-wide" id="gistInput" placeholder="貼上你的 Public Gist ID…">
       <button class="btn btn-green" onclick="saveGist()">儲存</button>
       <span id="gistMsg" style="font-size:11px;color:#334155"></span>
     </div>
-    <div class="hint">
-      前往 <a class="alink" href="https://gist.github.com" target="_blank">gist.github.com</a>
-      建立 Public Gist → 複製網址最後的 ID → 貼上後按儲存。<br>
-      同時把該 ID 加入 Repo Secrets（名稱：GIST_ID）。儲存後自動開始追蹤掃描進度。
-    </div>
+    <div class="hint">前往 <a class="alink" href="https://gist.github.com" target="_blank">gist.github.com</a> 建立 Public Gist → 複製網址最後 ID → 貼上儲存。同時加入 Repo Secret（名稱：GIST_ID）。</div>
   </div>
 
-  <!-- ② 掃描狀態 -->
-  <div class="box box-blue" id="statusBox">
+  <!-- Status -->
+  <div class="box box-blue">
     <div class="status-row">
       <div class="dot" id="statusDot"></div>
       <div style="flex:1">
         <div id="statusLabel" style="color:#64748b;font-weight:600">待機中</div>
         <div id="statusSub"   style="color:#334155;font-size:11px;margin-top:2px">請在 GitHub Actions 頁面點 Run workflow</div>
       </div>
-      <div id="statusMeta" style="color:#334155;font-size:10px;text-align:right"></div>
+      <div id="statusMeta" style="color:#334155;font-size:10px"></div>
     </div>
-    <!-- 進度條 -->
     <div id="progWrap" style="display:none;margin-top:10px">
       <div style="display:flex;justify-content:space-between;font-size:11px">
         <span id="progInfo" style="color:#64748b"></span>
@@ -159,25 +157,33 @@ a.alink { color:#3b82f6; text-decoration:none; }
     </div>
   </div>
 
-  <!-- ③ AI 分析 -->
+  <!-- AI -->
   <div class="box box-purple" id="aiBox" style="display:none">
     <div style="color:#a78bfa;font-size:10px;letter-spacing:3px;margin-bottom:8px">✦ AI 技術分析</div>
     <div id="aiText" style="color:#e2e8f0;font-size:13px;line-height:1.9;white-space:pre-wrap"></div>
   </div>
 
-  <!-- ④ 表格 -->
+  <!-- Table -->
   <div style="overflow-x:auto">
     <table>
       <thead>
         <tr>
-          <th class="l">#</th><th class="l">代號</th><th class="l">指數</th>
-          <th>現價</th><th>布林下軌</th><th>SMA(20)</th>
-          <th>%B</th><th>漲跌幅</th><th>波動度</th><th>離中線(%)</th><th>離下軌($)</th><th>離下軌(%)</th>
-          <th class="l" style="padding-left:10px;min-width:120px">接近程度</th>
+          <th class="l">#</th>
+          <th class="l">代號</th>
+          <th class="l">指數</th>
+          <th>現價($)</th>
+          <th>中線 SMA(20)</th>
+          <th>布林下軌</th>
+          <th>漲跌幅</th>
+          <th>離中線($)</th>
+          <th>離中線(%)</th>
+          <th>離下軌($)</th>
+          <th>離下軌(%)</th>
+          <th class="l" style="padding-left:10px;min-width:130px">位置</th>
         </tr>
       </thead>
       <tbody id="tbody">
-        <tr><td colspan="11" style="text-align:center;padding:50px;color:#1e293b">
+        <tr><td colspan="12" style="text-align:center;padding:50px;color:#1e293b">
           請先設定 Gist ID，再到 GitHub Actions 觸發掃描
         </td></tr>
       </tbody>
@@ -185,30 +191,35 @@ a.alink { color:#3b82f6; text-decoration:none; }
   </div>
 
   <div class="legend">
-    <div class="legend-item"><div class="ldot" style="background:#f87171"></div>跌破下軌</div>
-    <div class="legend-item"><div class="ldot" style="background:#fb923c"></div>極度接近</div>
-    <div class="legend-item"><div class="ldot" style="background:#facc15"></div>接近下軌</div>
-    <div class="legend-item"><div class="ldot" style="background:#4ade80"></div>正常區間</div>
-    <div style="margin-left:8px;display:flex;gap:6px;align-items:center">
+    <div style="color:#475569;font-size:10px;margin-right:4px">離下軌：</div>
+    <div class="legend-item"><div class="ldot" style="background:#f87171"></div>已跌破</div>
+    <div class="legend-item"><div class="ldot" style="background:#fb923c"></div>&lt;1%</div>
+    <div class="legend-item"><div class="ldot" style="background:#facc15"></div>1–3%</div>
+    <div class="legend-item"><div class="ldot" style="background:#4ade80"></div>&gt;3%</div>
+    <div style="color:#475569;font-size:10px;margin-left:12px;margin-right:4px">離中線：</div>
+    <div class="legend-item"><div class="ldot" style="background:#f87171"></div>低&gt;5%</div>
+    <div class="legend-item"><div class="ldot" style="background:#fb923c"></div>低2–5%</div>
+    <div class="legend-item"><div class="ldot" style="background:#facc15"></div>低0–2%</div>
+    <div class="legend-item"><div class="ldot" style="background:#4ade80"></div>高於中線</div>
+    <div style="margin-left:12px;display:flex;gap:6px;align-items:center">
       <span class="idx dj">DJ</span>道瓊
       <span class="idx nq">NQ</span>納斯達克
       <span class="idx sp">SP</span>標普500
     </div>
   </div>
   <div class="note">
-    📡 數據：Twelve Data ｜ 進度：GitHub Gist（即時）｜ 布林通道 = SMA(20) ± 2σ<br>
+    📐 中線 = SMA(20日均線)｜下軌 = SMA - 2×標準差<br>
+    離中線(%) = (現價 - 中線) ÷ 中線 × 100｜離下軌(%) = (現價 - 下軌) ÷ 下軌 × 100<br>
     ⚠ 僅供技術分析參考，不構成投資建議。
   </div>
 </div>
 
 <script>
 let allStocks = [];
-let threshold = 20;
-let sortBy    = 'pctB';
-let smaFilter = 'all';
+let sortBy    = 'lower';
 let activeIdx = new Set(['DJ','NQ','SP']);
 let pollTimer = null;
-let lastDone  = -1; // track last seen done count to avoid re-rendering
+let lastCount = -1;
 
 // ── Init ──
 window.onload = function() {
@@ -219,139 +230,81 @@ window.onload = function() {
     document.getElementById('gistMsg').style.color = '#4ade80';
     startPolling();
   }
-  // Also load last cached stocks from localStorage
   const cached = localStorage.getItem('bb_stocks');
   if (cached) {
     try {
       const d = JSON.parse(cached);
       allStocks = d.stocks || [];
-      document.getElementById('updateTime').textContent =
-        `快取數據：${d.updatedAtStr} ｜ 共 ${d.count} 檔`;
+      document.getElementById('updateTime').textContent = `快取：${d.updatedAtStr} ｜ ${d.count} 檔`;
       document.getElementById('aiBtn').disabled = false;
       renderTable();
     } catch(e) {}
   }
 };
 
-// ── Gist config ──
 function saveGist() {
   const id = document.getElementById('gistInput').value.trim();
   if (!id) { alert('請輸入 Gist ID'); return; }
   localStorage.setItem('gist_id', id);
-  localStorage.removeItem('gist_user'); // reset so username is re-fetched via API
+  localStorage.removeItem('gist_user');
   document.getElementById('gistMsg').textContent = '✓ 已儲存，開始追蹤…';
   document.getElementById('gistMsg').style.color = '#4ade80';
   startPolling();
 }
 
-// ── Polling ──
-function startPolling() {
-  clearTimeout(pollTimer);
-  pollGist();
-}
+function startPolling() { clearTimeout(pollTimer); pollGist(); }
 
 async function pollGist() {
-  const id       = localStorage.getItem('gist_id');
-  const username = localStorage.getItem('gist_user') || '';
+  const id = localStorage.getItem('gist_id');
   if (!id) return;
-
   const dot   = document.getElementById('statusDot');
   const label = document.getElementById('statusLabel');
   const sub   = document.getElementById('statusSub');
   const meta  = document.getElementById('statusMeta');
   const prog  = document.getElementById('progWrap');
-
   try {
-    let p;
-    // Strategy 1: use stored username for raw URL (fastest, no rate limit)
-    if (username) {
-      const base = `https://gist.githubusercontent.com/${username}/${id}/raw`;
-      const pRes = await fetch(`${base}/progress.json?t=${Date.now()}`, { cache: 'no-store' });
-      if (pRes.ok) {
-        p = await pRes.json();
-      } else {
-        // Username may be wrong, clear it and fall through to API
-        localStorage.removeItem('gist_user');
-      }
-    }
-    // Strategy 2: use GitHub API (auto-gets username, store it for next time)
-    if (!p) {
-      const apiRes = await fetch(`https://api.github.com/gists/${id}`, {
-        headers: { 'Accept': 'application/vnd.github+json' },
-        cache: 'no-store'
-      });
-      if (!apiRes.ok) throw new Error(`Gist API ${apiRes.status}`);
-      const gist = await apiRes.json();
-      // Cache the username for future raw URL calls
-      const user = gist.owner?.login || '';
-      if (user) localStorage.setItem('gist_user', user);
-      const pRaw = gist.files?.['progress.json']?.content;
-      if (!pRaw) throw new Error('progress.json 不在 Gist 中');
-      p = JSON.parse(pRaw);
-    }
+    const res = await fetch(`https://api.github.com/gists/${id}`, {
+      headers: { 'Accept': 'application/vnd.github+json' },
+      cache: 'no-store'
+    });
+    if (!res.ok) throw new Error(`API ${res.status}`);
+    const gist = await res.json();
+    const pRaw = gist.files?.['progress.json']?.content;
+    if (!pRaw) throw new Error('找不到 progress.json');
+    const p = JSON.parse(pRaw);
 
     if (p.status === 'scanning' && p.total > 0) {
       const pct = Math.round(p.done / p.total * 100);
       dot.className = 'dot dot-scan';
-      label.style.color  = '#4ade80';
-      label.textContent  = `🔄 掃描中… ${p.done} / ${p.total} 檔 (${pct}%)`;
-      sub.textContent    = `成功 ${p.successful} 檔　失敗 ${p.errors} 檔`;
-      meta.textContent   = p.updatedAtStr + ' UTC';
+      label.style.color = '#4ade80';
+      label.textContent = `🔄 掃描中… ${p.done} / ${p.total} 檔 (${pct}%)`;
+      sub.textContent   = `成功 ${p.successful} 檔　失敗 ${p.errors} 檔`;
+      meta.textContent  = p.updatedAtStr + ' UTC';
       prog.style.display = 'block';
       document.getElementById('progFill').style.width = pct + '%';
-      document.getElementById('progInfo').textContent =
-        `已掃描 ${p.done} / ${p.total} 檔　成功 ${p.successful}　失敗 ${p.errors}`;
-      document.getElementById('progPct').textContent = pct + '%';
-
-      // Load partial stock data
-      if (p.successful !== lastDone) {
-        lastDone = p.successful;
-        const u2 = localStorage.getItem('gist_user') || username;
-        const base2 = u2 ? `https://gist.githubusercontent.com/${u2}/${id}/raw` : null;
-        let d = null;
-        if (base2) {
-          const dRes = await fetch(`${base2}/data.json?t=${Date.now()}`, { cache: 'no-store' });
-          if (dRes.ok) d = await dRes.json();
-        }
-        if (d) {
-        allStocks = d.stocks || [];
-          localStorage.setItem('bb_stocks', JSON.stringify(d));
-          document.getElementById('updateTime').textContent =
-            `掃描中（部分結果）：${d.updatedAtStr} ｜ 已有 ${d.count} 檔`;
-          document.getElementById('aiBtn').disabled = false;
-          renderTable();
-        }
+      document.getElementById('progInfo').textContent = `已掃描 ${p.done} / ${p.total}　成功 ${p.successful}　失敗 ${p.errors}`;
+      document.getElementById('progPct').textContent  = pct + '%';
+      // Load partial data
+      if (p.successful !== lastCount) {
+        lastCount = p.successful;
+        const dRaw = gist.files?.['data.json']?.content;
+        if (dRaw) loadStocks(JSON.parse(dRaw), true);
       }
-      pollTimer = setTimeout(pollGist, 12000); // poll every 12s while scanning
+      pollTimer = setTimeout(pollGist, 15000);
 
     } else if (p.status === 'done' && p.total > 0) {
       dot.className = 'dot dot-done';
-      label.style.color  = '#4ade80';
-      label.textContent  = `✓ 掃描完成　共 ${p.successful} 檔`;
-      sub.textContent    = `失敗 ${p.errors} 檔`;
-      meta.textContent   = p.updatedAtStr + ' UTC';
+      label.style.color = '#4ade80';
+      label.textContent = `✓ 掃描完成　${p.successful} 檔成功`;
+      sub.textContent   = `失敗 ${p.errors} 檔`;
+      meta.textContent  = p.updatedAtStr + ' UTC';
       prog.style.display = 'none';
-
-      // Load final data
-      if (p.successful !== lastDone) {
-        lastDone = p.successful;
-        const u2 = localStorage.getItem('gist_user') || username;
-        const base2 = u2 ? `https://gist.githubusercontent.com/${u2}/${id}/raw` : null;
-        let d = null;
-        if (base2) {
-          const dRes = await fetch(`${base2}/data.json?t=${Date.now()}`, { cache: 'no-store' });
-          if (dRes.ok) d = await dRes.json();
-        }
-        if (d) {
-        allStocks = d.stocks || [];
-          localStorage.setItem('bb_stocks', JSON.stringify(d));
-          document.getElementById('updateTime').textContent =
-            `最後更新：${d.updatedAtStr} ｜ 共 ${d.count} 檔`;
-          document.getElementById('aiBtn').disabled = false;
-          renderTable();
-        }
+      if (p.successful !== lastCount) {
+        lastCount = p.successful;
+        const dRaw = gist.files?.['data.json']?.content;
+        if (dRaw) loadStocks(JSON.parse(dRaw), false);
       }
-      pollTimer = setTimeout(pollGist, 30000); // keep polling in case new scan starts
+      pollTimer = setTimeout(pollGist, 30000);
 
     } else {
       dot.className = 'dot';
@@ -363,126 +316,125 @@ async function pollGist() {
     }
   } catch(e) {
     label.textContent = '⚠ 無法讀取 Gist：' + e.message;
-    sub.textContent   = '請確認 Gist ID 正確且為 Public Gist';
+    sub.textContent   = '確認 Gist ID 正確且為 Public';
     pollTimer = setTimeout(pollGist, 30000);
   }
 }
 
-async function loadFromGist() {
-  clearTimeout(pollTimer);
-  await pollGist();
-}
-
-// ── Filters & Sort ──
-function toggleIdx(idx) {
-  if (activeIdx.has(idx)) {
-    if (activeIdx.size === 1) return;
-    activeIdx.delete(idx);
-    document.getElementById('f-'+idx).classList.remove('active');
-  } else {
-    activeIdx.add(idx);
-    document.getElementById('f-'+idx).classList.add('active');
-  }
+function loadStocks(d, partial) {
+  allStocks = d.stocks || [];
+  localStorage.setItem('bb_stocks', JSON.stringify(d));
+  document.getElementById('updateTime').textContent =
+    `${partial?'掃描中（部分）':'最後更新'}：${d.updatedAtStr} ｜ ${d.count} 檔`;
+  document.getElementById('aiBtn').disabled = false;
   renderTable();
 }
 
-function onThresh(v) {
-  threshold = +v;
-  document.getElementById('threshLabel').textContent = v + '%';
+// ── Filters ──
+function toggleIdx(idx) {
+  if (activeIdx.has(idx)) { if (activeIdx.size===1) return; activeIdx.delete(idx); document.getElementById('f-'+idx).classList.remove('active'); }
+  else { activeIdx.add(idx); document.getElementById('f-'+idx).classList.add('active'); }
   renderTable();
 }
 
 function setSort(k) {
   sortBy = k;
-  document.querySelectorAll('.sort-btn').forEach(b => b.classList.remove('active'));
+  document.querySelectorAll('.sort-btn').forEach(b=>b.classList.remove('active'));
   document.getElementById('sort-'+k).classList.add('active');
   renderTable();
 }
 
-function onSmaFilter(v) {
-  smaFilter = v;
-  renderTable();
+// ── Helpers ──
+function lowerColor(pct) {
+  if (pct < 0)  return '#f87171'; // broke below
+  if (pct < 1)  return '#fb923c'; // <1%
+  if (pct < 3)  return '#facc15'; // 1-3%
+  return '#4ade80';               // >3%
 }
+function smaColor(pct) {
+  if (pct < -5) return '#f87171';
+  if (pct < -2) return '#fb923c';
+  if (pct < 0)  return '#facc15';
+  return '#4ade80';
+}
+function chgColor(c) { return c<-3?'#f87171':c<-1?'#fb923c':c<0?'#facc15':'#4ade80'; }
+function f2(n) { return typeof n==='number'?n.toFixed(2):'—'; }
 
 // ── Render ──
-function pBc(p)  { return p<0?'#f87171':p<0.1?'#fb923c':p<0.2?'#facc15':'#4ade80'; }
-function chgC(c) { return c<-3?'#f87171':c<-1?'#fb923c':c<0?'#facc15':'#4ade80'; }
-function f2(n)   { return typeof n==='number'?n.toFixed(2):'—'; }
-
 function renderTable() {
-  const filtered = allStocks
-    .filter(s => {
-      if (!(s.tags||[]).some(t => activeIdx.has(t))) return false;
-      if (s.pctB*100 > threshold) return false;
-      // SMA distance filter
-      const distSmaPct = (s.price - s.sma) / s.sma * 100;
-      if (smaFilter === 'below'  && distSmaPct >= 0)          return false;
-      if (smaFilter === 'above'  && distSmaPct <  0)          return false;
-      if (smaFilter === 'near2'  && Math.abs(distSmaPct) > 2)  return false;
-      if (smaFilter === 'near5'  && Math.abs(distSmaPct) > 5)  return false;
-      if (smaFilter === 'near10' && Math.abs(distSmaPct) > 10) return false;
-      return true;
-    })
-    .sort((a,b) => {
-      if (sortBy === 'pctB')    return a.pctB - b.pctB;
-      if (sortBy === 'chg')     return a.chg - b.chg;
-      if (sortBy === 'bw')      return b.bw - a.bw;
-      if (sortBy === 'distSma') {
-        const da = (a.price - a.sma) / a.sma * 100;
-        const db = (b.price - b.sma) / b.sma * 100;
-        return da - db; // most below SMA first
-      }
-      return 0;
-    });
+  const lf  = parseFloat(document.getElementById('lowerFilter').value);
+  const sf  = document.getElementById('smaFilter').value;
 
-  document.getElementById('cnt-total').textContent  = filtered.length;
-  document.getElementById('cnt-danger').textContent = filtered.filter(s=>s.pctB<0).length;
-  document.getElementById('cnt-near').textContent   = filtered.filter(s=>s.pctB>=0&&s.pctB<0.1).length;
-  document.getElementById('cnt-app').textContent    = filtered.filter(s=>s.pctB>=0.1).length;
+  const filtered = allStocks.filter(s => {
+    if (!(s.tags||[]).some(t=>activeIdx.has(t))) return false;
+    const lowerPct = (s.price - s.lower) / s.lower * 100;
+    const smaPct   = (s.price - s.sma)   / s.sma   * 100;
+    // Lower band filter
+    if (lf === -1 && lowerPct >= 0) return false;   // only broken below
+    if (lf !== -1 && lowerPct > lf) return false;   // within X% of lower
+    // SMA filter
+    if (sf === 'below' && smaPct >= 0)              return false;
+    if (sf === 'above' && smaPct <  0)              return false;
+    if (sf === '2'     && Math.abs(smaPct) > 2)     return false;
+    if (sf === '5'     && Math.abs(smaPct) > 5)     return false;
+    return true;
+  }).sort((a,b) => {
+    const aLow = (a.price-a.lower)/a.lower*100;
+    const bLow = (b.price-b.lower)/b.lower*100;
+    const aSma = (a.price-a.sma)/a.sma*100;
+    const bSma = (b.price-b.sma)/b.sma*100;
+    if (sortBy==='lower') return aLow - bLow;
+    if (sortBy==='sma')   return aSma - bSma;
+    if (sortBy==='chg')   return a.chg - b.chg;
+    return 0;
+  });
+
+  document.getElementById('cnt-total').textContent = filtered.length;
+  document.getElementById('cnt-break').textContent = filtered.filter(s=>s.price<s.lower).length;
+  document.getElementById('cnt-near').textContent  = filtered.filter(s=>s.price>=s.lower&&(s.price-s.lower)/s.lower*100<2).length;
+  document.getElementById('cnt-below').textContent = filtered.filter(s=>s.price<s.sma).length;
 
   const tbody = document.getElementById('tbody');
-  if (!filtered.length && allStocks.length > 0) {
-    tbody.innerHTML = '<tr><td colspan="11" style="text-align:center;padding:40px;color:#334155">無符合條件，請調高 %B 閾值</td></tr>';
+  if (!filtered.length && allStocks.length>0) {
+    tbody.innerHTML = '<tr><td colspan="12" style="text-align:center;padding:40px;color:#334155">無符合條件，請調整篩選條件</td></tr>';
     return;
   }
   if (!filtered.length) return;
 
   tbody.innerHTML = filtered.map((s,i) => {
-    const cl         = Math.max(0, Math.min(1, s.pctB));
-    const bc         = pBc(s.pctB);
-    const distAbs    = s.price - s.lower;                        // $ above lower band
-    const distPct    = (s.price - s.lower) / s.lower * 100;     // % above lower band
-    const distSmaPct = (s.price - s.sma) / s.sma * 100;         // % from SMA (middle band)
-    const smaC       = distSmaPct < -5 ? '#f87171' : distSmaPct < -2 ? '#fb923c' : distSmaPct < 0 ? '#facc15' : distSmaPct < 2 ? '#94a3b8' : '#4ade80';
-    const bg      = s.pctB<0 ? 'rgba(248,113,113,0.07)' : s.pctB<0.1 ? 'rgba(251,146,60,0.05)' : 'transparent';
-    const brk     = s.pctB<0 ? '<span class="brk">破位</span>' : '';
-    const tags    = (s.tags||[]).map(t=>`<span class="idx ${t.toLowerCase()}">${t}</span>`).join('');
-    // Proximity color: red=very close/below, orange=close, yellow=near, green=normal
-    const proxC   = distPct < 0 ? '#f87171' : distPct < 1 ? '#fb923c' : distPct < 3 ? '#facc15' : '#64748b';
-    // Proximity bar: show how close price is to lower band (inverted — full=touching lower)
-    const proxPct = Math.max(0, Math.min(100, 100 - s.pctB * 100));
+    const lowerAbs = s.price - s.lower;
+    const lowerPct = lowerAbs / s.lower * 100;
+    const smaAbs   = s.price - s.sma;
+    const smaPct   = smaAbs / s.sma * 100;
+    const lc  = lowerColor(lowerPct);
+    const sc  = smaColor(smaPct);
+    const bg  = lowerPct<0 ? 'rgba(248,113,113,0.07)' : lowerPct<1 ? 'rgba(251,146,60,0.05)' : 'transparent';
+    const brk = lowerPct<0 ? '<span class="brk">破位</span>' : '';
+    const tags = (s.tags||[]).map(t=>`<span class="idx ${t.toLowerCase()}">${t}</span>`).join('');
+
+    // Position bar — shows price position between lower and upper band
+    const cl  = Math.max(0, Math.min(1, (s.price-s.lower)/(s.upper-s.lower)));
+    const label = lowerPct<0?'⚠ 跌破下軌':lowerPct<1?'🔴 極貼近下軌':lowerPct<3?'🟠 接近下軌':smaPct<0?'🟡 低於中線':'';
+
     return `<tr style="background:${bg}">
       <td class="l" style="color:#334155">${i+1}</td>
       <td class="l">${brk}<a href="https://finance.yahoo.com/quote/${s.ticker}" target="_blank" class="tlink">${s.ticker}</a></td>
       <td class="l">${tags}</td>
       <td style="color:#e2e8f0;font-weight:600">$${f2(s.price)}</td>
+      <td style="color:#94a3b8">$${f2(s.sma)}</td>
       <td style="color:#f87171">$${f2(s.lower)}</td>
-      <td style="color:#64748b">$${f2(s.sma)}</td>
-      <td style="color:${bc};font-weight:700">${(s.pctB*100).toFixed(1)}%</td>
-      <td style="color:${chgC(s.chg)};font-weight:600">${s.chg>=0?'+':''}${f2(s.chg)}%</td>
-      <td style="color:#475569">${f2(s.bw)}%</td>
-      <td style="color:${smaC};font-weight:600">${distSmaPct>=0?'+':''}${f2(distSmaPct)}%</td>
-      <td style="color:${proxC};font-weight:600">${distAbs<0?'-$':'+$'}${Math.abs(distAbs).toFixed(2)}</td>
-      <td style="color:${proxC};font-weight:600">${distPct<0?'':'+'}${f2(distPct)}%</td>
+      <td style="color:${chgColor(s.chg)};font-weight:600">${s.chg>=0?'+':''}${f2(s.chg)}%</td>
+      <td style="color:${sc};font-weight:600">${smaAbs>=0?'+$':'-$'}${Math.abs(smaAbs).toFixed(2)}</td>
+      <td style="color:${sc};font-weight:600">${smaPct>=0?'+':''}${f2(smaPct)}%</td>
+      <td style="color:${lc};font-weight:600">${lowerAbs>=0?'+$':'-$'}${Math.abs(lowerAbs).toFixed(2)}</td>
+      <td style="color:${lc};font-weight:600">${lowerPct>=0?'+':''}${f2(lowerPct)}%</td>
       <td style="padding:8px 14px 8px 10px;text-align:left">
-        <div style="margin-bottom:3px;font-size:9px;color:${proxC};font-weight:700">
-          ${distPct<0?'⚠ 已跌破下軌':distPct<1?'🔴 極度接近':distPct<3?'🟠 接近':distPct<5?'🟡 留意':''}
+        ${label ? `<div style="font-size:9px;margin-bottom:3px">${label}</div>` : ''}
+        <div class="bar-wrap">
+          <div class="bar-fill" style="left:0;width:${cl*100}%;background:${lc}"></div>
+          <div class="bar-dot"  style="left:${cl*100}%;background:${lc};box-shadow:0 0 4px ${lc}"></div>
         </div>
-        <div class="band-bar">
-          <div class="band-fill" style="width:${cl*100}%;background:${bc}"></div>
-          <div class="band-dot" style="left:${cl*100}%;background:${bc};box-shadow:0 0 5px ${bc}"></div>
-        </div>
-        <div class="band-labels"><span>下軌</span><span>中軌</span><span>上軌</span></div>
+        <div class="bar-labels"><span>下軌</span><span>中線</span><span>上軌</span></div>
       </td>
     </tr>`;
   }).join('');
@@ -490,31 +442,34 @@ function renderTable() {
 
 // ── AI ──
 async function runAI() {
+  const lf = parseFloat(document.getElementById('lowerFilter').value);
   const filtered = allStocks
-    .filter(s=>(s.tags||[]).some(t=>activeIdx.has(t)) && s.pctB*100<=threshold)
+    .filter(s=>(s.tags||[]).some(t=>activeIdx.has(t)) && (s.price-s.lower)/s.lower*100<=lf)
     .slice(0,20);
   if (!filtered.length) return;
   document.getElementById('aiBtn').disabled = true;
   document.getElementById('aiBtn').textContent = '分析中…';
   const aiBox  = document.getElementById('aiBox');
   const aiText = document.getElementById('aiText');
-  aiBox.style.display  = 'block';
-  aiText.textContent   = '正在分析…';
-  const summary = filtered.map(s=>
-    `${s.ticker}[${(s.tags||[]).join('/')}]: $${f2(s.price)}, 下軌$${f2(s.lower)}, %B=${(s.pctB*100).toFixed(1)}%, 漲跌=${f2(s.chg)}%, 波動=${f2(s.bw)}%`
-  ).join('\n');
+  aiBox.style.display = 'block';
+  aiText.textContent  = '正在分析…';
+  const summary = filtered.map(s=>{
+    const lp = ((s.price-s.lower)/s.lower*100).toFixed(2);
+    const sp = ((s.price-s.sma)/s.sma*100).toFixed(2);
+    return `${s.ticker}: 現價$${f2(s.price)}, 中線$${f2(s.sma)}(${sp}%), 下軌$${f2(s.lower)}(+${lp}%), 漲跌${f2(s.chg)}%`;
+  }).join('\n');
   try {
-    const res = await fetch('https://api.anthropic.com/v1/messages', {
+    const res = await fetch('https://api.anthropic.com/v1/messages',{
       method:'POST', headers:{'Content-Type':'application/json'},
       body: JSON.stringify({ model:'claude-sonnet-4-20250514', max_tokens:1000,
         messages:[{role:'user', content:
-          `你是專業美股技術分析師。以下是%B低於${threshold}%的股票：\n\n${summary}\n\n請用繁體中文（250字內）：\n1. 最值得關注3-5檔及原因\n2. 各指數賣壓分布\n3. 短線操作建議`
+          `你是專業美股技術分析師。以下股票正接近布林通道下軌：\n\n${summary}\n\n請用繁體中文（250字內）分析：\n1. 最值得關注3-5檔（根據離下軌和離中線距離）\n2. 整體市場訊號\n3. 短線操作建議`
         }]
       })
     });
     const d = await res.json();
     aiText.textContent = d.content?.[0]?.text || '失敗';
-  } catch(e) { aiText.textContent = '錯誤：' + e.message; }
+  } catch(e) { aiText.textContent = '錯誤：'+e.message; }
   document.getElementById('aiBtn').disabled = false;
   document.getElementById('aiBtn').textContent = '✦ AI 解讀';
 }
