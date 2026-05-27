@@ -97,9 +97,21 @@ a.alink { color:#3b82f6; text-decoration:none; }
     </div>
     <div style="display:flex;gap:5px;align-items:center">
       <span style="color:#475569;font-size:11px">排序</span>
-      <button class="sort-btn active" id="sort-pctB" onclick="setSort('pctB')">%B</button>
-      <button class="sort-btn" id="sort-chg"  onclick="setSort('chg')">跌幅</button>
-      <button class="sort-btn" id="sort-bw"   onclick="setSort('bw')">波動</button>
+      <button class="sort-btn active" id="sort-pctB"    onclick="setSort('pctB')">%B</button>
+      <button class="sort-btn"        id="sort-distSma" onclick="setSort('distSma')">離中線</button>
+      <button class="sort-btn"        id="sort-chg"     onclick="setSort('chg')">跌幅</button>
+      <button class="sort-btn"        id="sort-bw"      onclick="setSort('bw')">波動</button>
+    </div>
+    <div style="display:flex;align-items:center;gap:8px">
+      <span style="color:#475569;font-size:11px">離中線篩選</span>
+      <select id="smaFilter" onchange="onSmaFilter(this.value)" style="background:#0f172a;border:1px solid #1e293b;color:#e2e8f0;padding:4px 8px;border-radius:4px;font-family:inherit;font-size:11px;outline:none">
+        <option value="all">全部</option>
+        <option value="below">低於中線</option>
+        <option value="above">高於中線</option>
+        <option value="near2">距中線 ±2%</option>
+        <option value="near5">距中線 ±5%</option>
+        <option value="near10">距中線 ±10%</option>
+      </select>
     </div>
     <div style="display:flex;gap:12px;margin-left:auto">
       <div class="stat"><div class="stat-num" id="cnt-total"  style="color:#94a3b8">—</div><div class="stat-lbl">符合</div></div>
@@ -160,7 +172,7 @@ a.alink { color:#3b82f6; text-decoration:none; }
         <tr>
           <th class="l">#</th><th class="l">代號</th><th class="l">指數</th>
           <th>現價</th><th>布林下軌</th><th>SMA(20)</th>
-          <th>%B</th><th>漲跌幅</th><th>波動度</th><th>離下軌($)</th><th>離下軌(%)</th>
+          <th>%B</th><th>漲跌幅</th><th>波動度</th><th>離中線(%)</th><th>離下軌($)</th><th>離下軌(%)</th>
           <th class="l" style="padding-left:10px;min-width:120px">接近程度</th>
         </tr>
       </thead>
@@ -193,6 +205,7 @@ a.alink { color:#3b82f6; text-decoration:none; }
 let allStocks = [];
 let threshold = 20;
 let sortBy    = 'pctB';
+let smaFilter = 'all';
 let activeIdx = new Set(['DJ','NQ','SP']);
 let pollTimer = null;
 let lastDone  = -1; // track last seen done count to avoid re-rendering
@@ -373,6 +386,11 @@ function setSort(k) {
   renderTable();
 }
 
+function onSmaFilter(v) {
+  smaFilter = v;
+  renderTable();
+}
+
 // ── Render ──
 function pBc(p)  { return p<0?'#f87171':p<0.1?'#fb923c':p<0.2?'#facc15':'#4ade80'; }
 function chgC(c) { return c<-3?'#f87171':c<-1?'#fb923c':c<0?'#facc15':'#4ade80'; }
@@ -380,8 +398,29 @@ function f2(n)   { return typeof n==='number'?n.toFixed(2):'—'; }
 
 function renderTable() {
   const filtered = allStocks
-    .filter(s => (s.tags||[]).some(t => activeIdx.has(t)) && s.pctB*100 <= threshold)
-    .sort((a,b) => sortBy==='pctB'?a.pctB-b.pctB : sortBy==='chg'?a.chg-b.chg : b.bw-a.bw);
+    .filter(s => {
+      if (!(s.tags||[]).some(t => activeIdx.has(t))) return false;
+      if (s.pctB*100 > threshold) return false;
+      // SMA distance filter
+      const distSmaPct = (s.price - s.sma) / s.sma * 100;
+      if (smaFilter === 'below'  && distSmaPct >= 0)          return false;
+      if (smaFilter === 'above'  && distSmaPct <  0)          return false;
+      if (smaFilter === 'near2'  && Math.abs(distSmaPct) > 2)  return false;
+      if (smaFilter === 'near5'  && Math.abs(distSmaPct) > 5)  return false;
+      if (smaFilter === 'near10' && Math.abs(distSmaPct) > 10) return false;
+      return true;
+    })
+    .sort((a,b) => {
+      if (sortBy === 'pctB')    return a.pctB - b.pctB;
+      if (sortBy === 'chg')     return a.chg - b.chg;
+      if (sortBy === 'bw')      return b.bw - a.bw;
+      if (sortBy === 'distSma') {
+        const da = (a.price - a.sma) / a.sma * 100;
+        const db = (b.price - b.sma) / b.sma * 100;
+        return da - db; // most below SMA first
+      }
+      return 0;
+    });
 
   document.getElementById('cnt-total').textContent  = filtered.length;
   document.getElementById('cnt-danger').textContent = filtered.filter(s=>s.pctB<0).length;
@@ -396,10 +435,12 @@ function renderTable() {
   if (!filtered.length) return;
 
   tbody.innerHTML = filtered.map((s,i) => {
-    const cl      = Math.max(0, Math.min(1, s.pctB));
-    const bc      = pBc(s.pctB);
-    const distAbs = s.price - s.lower;                        // $ above lower
-    const distPct = (s.price - s.lower) / s.lower * 100;     // % above lower
+    const cl         = Math.max(0, Math.min(1, s.pctB));
+    const bc         = pBc(s.pctB);
+    const distAbs    = s.price - s.lower;                        // $ above lower band
+    const distPct    = (s.price - s.lower) / s.lower * 100;     // % above lower band
+    const distSmaPct = (s.price - s.sma) / s.sma * 100;         // % from SMA (middle band)
+    const smaC       = distSmaPct < -5 ? '#f87171' : distSmaPct < -2 ? '#fb923c' : distSmaPct < 0 ? '#facc15' : distSmaPct < 2 ? '#94a3b8' : '#4ade80';
     const bg      = s.pctB<0 ? 'rgba(248,113,113,0.07)' : s.pctB<0.1 ? 'rgba(251,146,60,0.05)' : 'transparent';
     const brk     = s.pctB<0 ? '<span class="brk">破位</span>' : '';
     const tags    = (s.tags||[]).map(t=>`<span class="idx ${t.toLowerCase()}">${t}</span>`).join('');
@@ -417,6 +458,7 @@ function renderTable() {
       <td style="color:${bc};font-weight:700">${(s.pctB*100).toFixed(1)}%</td>
       <td style="color:${chgC(s.chg)};font-weight:600">${s.chg>=0?'+':''}${f2(s.chg)}%</td>
       <td style="color:#475569">${f2(s.bw)}%</td>
+      <td style="color:${smaC};font-weight:600">${distSmaPct>=0?'+':''}${f2(distSmaPct)}%</td>
       <td style="color:${proxC};font-weight:600">${distAbs<0?'-$':'+$'}${Math.abs(distAbs).toFixed(2)}</td>
       <td style="color:${proxC};font-weight:600">${distPct<0?'':'+'}${f2(distPct)}%</td>
       <td style="padding:8px 14px 8px 10px;text-align:left">
