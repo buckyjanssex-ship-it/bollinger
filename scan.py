@@ -113,18 +113,29 @@ def fetch_batch(tickers):
             if not info or info.get("status") == "error" or not info.get("values"):
                 continue
             closes = [float(v["close"]) for v in reversed(info["values"])]
+            if len(closes) < 22: continue
+            # Current day uses last 20 closes
             last20 = closes[-20:]
-            if len(last20) < 5: continue
-            cur, prev = last20[-1], last20[-2]
-            chg  = (cur - prev) / prev * 100
-            sma  = sum(last20) / len(last20)
-            std  = math.sqrt(sum((x-sma)**2 for x in last20) / len(last20))
+            cur    = last20[-1]
+            prev   = last20[-2]
+            chg    = (cur - prev) / prev * 100
+            sma    = sum(last20) / len(last20)
+            std    = math.sqrt(sum((x-sma)**2 for x in last20) / len(last20))
             upper, lower = sma+2*std, sma-2*std
-            pctB = (cur-lower)/(upper-lower) if upper != lower else 0.5
-            bw   = (upper-lower)/sma*100 if sma else 0
+            bw     = (upper-lower)/sma*100 if sma else 0
+            # Previous day uses closes[-21:-1] to get yesterday's band
+            prev20     = closes[-21:-1]
+            prev_sma   = sum(prev20) / len(prev20)
+            prev_std   = math.sqrt(sum((x-prev_sma)**2 for x in prev20) / len(prev20))
+            prev_lower = prev_sma - 2*prev_std
+            # Crossover flags
+            cross_lower = prev < prev_lower and cur >= lower   # crossed above lower band
+            cross_sma   = prev < prev_sma   and cur >= sma     # crossed above SMA
             results.append({"ticker":ticker,"price":round(cur,2),
                 "sma":round(sma,2),"upper":round(upper,2),"lower":round(lower,2),
-                "pctB":round(pctB,4),"bw":round(bw,2),"chg":round(chg,2)})
+                "bw":round(bw,2),"chg":round(chg,2),
+                "crossLower": cross_lower,
+                "crossSma":   cross_sma})
         except: pass
     return results
 

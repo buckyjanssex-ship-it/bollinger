@@ -109,6 +109,12 @@ a.alink { color:#3b82f6; text-decoration:none; }
         <option value="5">中線±5%內</option>
       </select>
     </div>
+    <!-- Crossover filter -->
+    <div style="display:flex;gap:5px;align-items:center">
+      <span style="color:#475569;font-size:11px">升穿訊號</span>
+      <button class="filter-btn" id="c-lower" onclick="toggleCross('lower')">⬆ 升穿下軌</button>
+      <button class="filter-btn" id="c-sma"   onclick="toggleCross('sma')">⬆ 升穿中線</button>
+    </div>
     <!-- Sort -->
     <div style="display:flex;gap:5px;align-items:center">
       <span style="color:#475569;font-size:11px">排序</span>
@@ -121,7 +127,9 @@ a.alink { color:#3b82f6; text-decoration:none; }
       <div class="stat"><div class="stat-num" id="cnt-total"  style="color:#94a3b8">—</div><div class="stat-lbl">符合</div></div>
       <div class="stat"><div class="stat-num" id="cnt-break"  style="color:#f87171">—</div><div class="stat-lbl">跌破下軌</div></div>
       <div class="stat"><div class="stat-num" id="cnt-near"   style="color:#fb923c">—</div><div class="stat-lbl">貼近下軌</div></div>
-      <div class="stat"><div class="stat-num" id="cnt-below"  style="color:#facc15">—</div><div class="stat-lbl">低於中線</div></div>
+      <div class="stat"><div class="stat-num" id="cnt-below"   style="color:#facc15">—</div><div class="stat-lbl">低於中線</div></div>
+      <div class="stat"><div class="stat-num" id="cnt-crossL"  style="color:#4ade80">—</div><div class="stat-lbl">升穿下軌</div></div>
+      <div class="stat"><div class="stat-num" id="cnt-crossS"  style="color:#60a5fa">—</div><div class="stat-lbl">升穿中線</div></div>
     </div>
   </div>
 </div>
@@ -206,6 +214,10 @@ a.alink { color:#3b82f6; text-decoration:none; }
       <span class="idx nq">NQ</span>納斯達克
       <span class="idx sp">SP</span>標普500
     </div>
+    <div style="margin-left:12px;display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+      <span style="font-size:9px;background:#14532d;color:#4ade80;padding:1px 6px;border-radius:3px">⬆ 升穿下軌</span>昨低於下軌，今升穿
+      <span style="font-size:9px;background:#1e3a5f;color:#60a5fa;padding:1px 6px;border-radius:3px">⬆ 升穿中線</span>昨低於中線，今升穿
+    </div>
   </div>
   <div class="note">
     📐 中線 = SMA(20日均線)｜下軌 = SMA - 2×標準差<br>
@@ -215,11 +227,12 @@ a.alink { color:#3b82f6; text-decoration:none; }
 </div>
 
 <script>
-let allStocks = [];
-let sortBy    = 'lower';
-let activeIdx = new Set(['DJ','NQ','SP']);
-let pollTimer = null;
-let lastCount = -1;
+let allStocks  = [];
+let sortBy     = 'lower';
+let activeIdx  = new Set(['DJ','NQ','SP']);
+let crossFilter = new Set(); // 'lower', 'sma'
+let pollTimer  = null;
+let lastCount  = -1;
 
 // ── Init ──
 window.onload = function() {
@@ -331,6 +344,17 @@ function loadStocks(d, partial) {
 }
 
 // ── Filters ──
+function toggleCross(type) {
+  if (crossFilter.has(type)) {
+    crossFilter.delete(type);
+    document.getElementById('c-'+type).classList.remove('active');
+  } else {
+    crossFilter.add(type);
+    document.getElementById('c-'+type).classList.add('active');
+  }
+  renderTable();
+}
+
 function toggleIdx(idx) {
   if (activeIdx.has(idx)) { if (activeIdx.size===1) return; activeIdx.delete(idx); document.getElementById('f-'+idx).classList.remove('active'); }
   else { activeIdx.add(idx); document.getElementById('f-'+idx).classList.add('active'); }
@@ -377,6 +401,9 @@ function renderTable() {
     if (sf === 'above' && smaPct <  0)              return false;
     if (sf === '2'     && Math.abs(smaPct) > 2)     return false;
     if (sf === '5'     && Math.abs(smaPct) > 5)     return false;
+    // Crossover filter
+    if (crossFilter.has('lower') && !s.crossLower)  return false;
+    if (crossFilter.has('sma')   && !s.crossSma)    return false;
     return true;
   }).sort((a,b) => {
     const aLow = (a.price-a.lower)/a.lower*100;
@@ -389,10 +416,12 @@ function renderTable() {
     return 0;
   });
 
-  document.getElementById('cnt-total').textContent = filtered.length;
-  document.getElementById('cnt-break').textContent = filtered.filter(s=>s.price<s.lower).length;
-  document.getElementById('cnt-near').textContent  = filtered.filter(s=>s.price>=s.lower&&(s.price-s.lower)/s.lower*100<2).length;
-  document.getElementById('cnt-below').textContent = filtered.filter(s=>s.price<s.sma).length;
+  document.getElementById('cnt-total').textContent  = filtered.length;
+  document.getElementById('cnt-break').textContent  = filtered.filter(s=>s.price<s.lower).length;
+  document.getElementById('cnt-near').textContent   = filtered.filter(s=>s.price>=s.lower&&(s.price-s.lower)/s.lower*100<2).length;
+  document.getElementById('cnt-below').textContent  = filtered.filter(s=>s.price<s.sma).length;
+  document.getElementById('cnt-crossL').textContent = allStocks.filter(s=>s.crossLower).length;
+  document.getElementById('cnt-crossS').textContent = allStocks.filter(s=>s.crossSma).length;
 
   const tbody = document.getElementById('tbody');
   if (!filtered.length && allStocks.length>0) {
@@ -410,7 +439,11 @@ function renderTable() {
     const sc  = smaColor(smaPct);
     const bg  = lowerPct<0 ? 'rgba(248,113,113,0.07)' : lowerPct<1 ? 'rgba(251,146,60,0.05)' : 'transparent';
     const brk = lowerPct<0 ? '<span class="brk">破位</span>' : '';
-    const tags = (s.tags||[]).map(t=>`<span class="idx ${t.toLowerCase()}">${t}</span>`).join('');
+    const tags   = (s.tags||[]).map(t=>`<span class="idx ${t.toLowerCase()}">${t}</span>`).join('');
+    const crossBadges = [
+      s.crossLower ? '<span style="font-size:9px;background:#14532d;color:#4ade80;padding:1px 5px;border-radius:3px;margin-right:3px">⬆ 升穿下軌</span>' : '',
+      s.crossSma   ? '<span style="font-size:9px;background:#1e3a5f;color:#60a5fa;padding:1px 5px;border-radius:3px;margin-right:3px">⬆ 升穿中線</span>' : '',
+    ].join('');
 
     // Position bar — shows price position between lower and upper band
     const cl  = Math.max(0, Math.min(1, (s.price-s.lower)/(s.upper-s.lower)));
@@ -418,7 +451,7 @@ function renderTable() {
 
     return `<tr style="background:${bg}">
       <td class="l" style="color:#334155">${i+1}</td>
-      <td class="l">${brk}<a href="https://finance.yahoo.com/quote/${s.ticker}" target="_blank" class="tlink">${s.ticker}</a></td>
+      <td class="l">${brk}<a href="https://finance.yahoo.com/quote/${s.ticker}" target="_blank" class="tlink">${s.ticker}</a>${crossBadges}</td>
       <td class="l">${tags}</td>
       <td style="color:#e2e8f0;font-weight:600">$${f2(s.price)}</td>
       <td style="color:#94a3b8">$${f2(s.sma)}</td>
