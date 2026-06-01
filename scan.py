@@ -113,13 +113,40 @@ def fetch_batch(tickers):
             if not info or info.get("status") == "error" or not info.get("values"):
                 continue
             closes = [float(v["close"]) for v in reversed(info["values"])]
-            if len(closes) < 30: continue
+            if len(closes) < 35: continue
 
             def calc_band(c):
                 """Calculate SMA, upper, lower for a given list of closes (last 20)."""
                 s   = sum(c[-20:]) / 20
                 sd  = (sum((x-s)**2 for x in c[-20:]) / 20) ** 0.5
                 return s, s+2*sd, s-2*sd
+
+            def band_at(closes_all, idx):
+                if idx < 20: return None, None, None
+                c = closes_all[:idx+1]
+                return calc_band(c)
+
+            def ema(prices, period):
+                k = 2 / (period + 1)
+                e = prices[0]
+                for p in prices[1:]:
+                    e = p * k + e * (1 - k)
+                return e
+
+            def calc_macd(closes_all):
+                """Returns (macd_line, signal_line, histogram) for last few days."""
+                if len(closes_all) < 35: return [], [], []
+                macd_line = []
+                for i in range(26, len(closes_all)):
+                    fast = ema(closes_all[i-11:i+1], 12)
+                    slow = ema(closes_all[i-25:i+1], 26)
+                    macd_line.append(fast - slow)
+                if len(macd_line) < 9: return macd_line, [], []
+                signal = []
+                for i in range(8, len(macd_line)):
+                    signal.append(ema(macd_line[i-8:i+1], 9))
+                hist = [m - s for m, s in zip(macd_line[8:], signal)]
+                return macd_line, signal, hist
 
             # Today's band
             sma, upper, lower = calc_band(closes)
@@ -129,156 +156,115 @@ def fetch_batch(tickers):
             bw   = (upper - lower) / sma * 100 if sma else 0
 
             # Yesterday's band (for crossover)
-            prev_sma, _, prev_lower = calc_band(closes[:-1])
+            prev_sma, _, prev_lower = band_at(closes, len(closes)-2) if len(closes) >= 22 else (sma, upper, lower)
 
             # Crossover flags
-            cross_lower = prev < prev_lower and cur >= lower
-            cross_sma   = prev < prev_sma   and cur >= sma
+            cross_lower = prev < prev_lower and cur >= lower if prev_lower else False
+            cross_sma   = prev < prev_sma   and cur >= sma   if prev_sma   else False
 
-            # ── Near-upper pattern detection ──
-            # For each of the last N days, check if price was within X% of upper band
-            # and stayed above SMA
-            def near_upper_days(closes_all, n_days, pct_threshold):
-                """
-                Count how many of the last n_days had:
-                  - price within pct_threshold% of upper band
-                  - price above SMA (not below midline)
-                Returns count of consecutive days from most recent backwards.
-                """
-                consecutive = 0
-                for d in range(1, n_days+2):  # check enough days
-                    if d >= len(closes_all): break
-                    # Compute band for that day
-                    end_idx = len(closes_all) - d
-                    if end_idx < 20: break
-                    c_slice = closes_all[:end_idx+1]
-                    s, u, _ = calc_band(c_slice)
-                    price_d = closes_all[end_idx]
-                    dist_from_upper = (u - price_d) / u * 100
-                    if dist_from_upper <= pct_threshold and price_d >= s:
-                        consecutive += 1
-                    else:
-                        break
-                return consecutive
+            # ── MACD ──
+            macd_vals, signal_vals, hist_vals = calc_macd(closes)
+            macd_now  = macd_vals[-1]  if len(macd_vals)  >= 2 else 0
+            macd_prev = macd_vals[-2]  if len(macd_vals)  >= 2 else 0
+            hist_now  = hist_vals[-1]  if len(hist_vals)  >= 2 else 0
+            hist_prev = hist_vals[-2]  if len(hist_vals)  >= 2 else 0
+            sig_now   = signal_vals[-1] if signal_vals else 0
 
-            # Check recent near-upper streaks (looking back from yesterday, not today)
-            # We check yesterday onwards to find if there WAS a streak before today's pullback
-            def had_near_upper_streak(closes_all, min_days, pct_threshold, lookback=15):
-                """
-                Find if within the last `lookback` days (excluding today),
-                there was a streak of min_days consecutive days near upper band above SMA.
-                Returns (found, streak_length, days_ago_ended)
-                """
-                for start in range(1, lookback):
-                    streak = 0
-                    for d in range(start, start + min_days + 5):
-                        if d >= len(closes_all): break
-                        end_idx = len(closes_all) - d
-                        if end_idx < 20: break
-                        c_slice = closes_all[:end_idx+1]
-                        s, u, _ = calc_band(c_slice)
-                        price_d = closes_all[end_idx]
-                        dist_from_upper = (u - price_d) / u * 100
-                        if dist_from_upper <= pct_threshold and price_d >= s:
-                            streak += 1
-                        else:
-                            if streak >= min_days:
-                                return True, streak, start
-                            streak = 0
-                    if streak >= min_days:
-                        return True, streak, start
-                return False, 0, 0
+            # MACD divergence: price makes new low but MACD histogram makes higher low (bullish)
+            # Check last 5 days
+            price_lower_low = len(closes) >= 2 and closes[-1] < min(closes[-6:-1]) if len(closes) >= 6 else False
+            macd_higher_low = len(hist_vals) >= 5 and hist_vals[-1] > min(hist_vals[-5:-1])
+            bullish_divergence = price_lower_low and macd_higher_low and hist_now < 0
 
-            # Current price position relative to SMA
-            cur_dist_sma = (cur - sma) / sma * 100  # negative = below SMA
+            # Bearish divergence: price makes new high but MACD histogram makes lower high
+            price_higher_high = len(closes) >= 2 and closes[-1] > max(closes[-6:-1]) if len(closes) >= 6 else False
+            macd_lower_high   = len(hist_vals) >= 5 and hist_vals[-1] < max(hist_vals[-5:-1])
+            bearish_divergence = price_higher_high and macd_lower_high and hist_now > 0
 
-            # Pattern 1: Had 3+ days within 2% of upper (above SMA), now near SMA (within 3%)
-            had3_2pct, streak3_2, ago3_2 = had_near_upper_streak(closes, 3, 2.0)
-            had5_2pct, streak5_2, ago5_2 = had_near_upper_streak(closes, 5, 2.0)
-            had3_5pct, streak3_5, ago3_5 = had_near_upper_streak(closes, 3, 5.0)
-            had5_5pct, streak5_5, ago5_5 = had_near_upper_streak(closes, 5, 5.0)
+            # MACD cross above signal (bullish crossover)
+            macd_cross_up   = macd_prev < signal_vals[-2] and macd_now >= sig_now if len(signal_vals) >= 2 else False
+            macd_cross_down = macd_prev > signal_vals[-2] and macd_now <= sig_now if len(signal_vals) >= 2 else False
 
-            near_sma_now = abs(cur_dist_sma) <= 5  # currently within 5% of SMA
-
-            # pullback_to_sma: was near upper, now pulled back to within 5% of SMA
-            pullback_3d_2pct = had3_2pct and near_sma_now
-            pullback_5d_2pct = had5_2pct and near_sma_now
-            pullback_3d_5pct = had3_5pct and near_sma_now
-            pullback_5d_5pct = had5_5pct and near_sma_now
-
-            # Currently near upper (for tagging)
-            cur_dist_upper = (upper - cur) / upper * 100
-            near_upper_2pct_3d = near_upper_days(closes, 3, 2.0) >= 3
-            near_upper_2pct_5d = near_upper_days(closes, 5, 2.0) >= 5
-            near_upper_5pct_3d = near_upper_days(closes, 3, 5.0) >= 3
-            near_upper_5pct_5d = near_upper_days(closes, 5, 5.0) >= 5
-
-            # ── Pullback then bounce back above SMA within 3 days ──
-            # Pattern:
-            # 1. Had N consecutive days near upper band above SMA (historical)
-            # 2. Price then pulled back to touch/cross below SMA
-            # 3. Within 3 trading days, price bounced back above SMA
-            # 4. Currently above SMA (confirmed bounce)
-
-            def bounce_after_pullback(closes_all, min_upper_days, upper_pct, lookback=20):
-                """
-                Detect: was near upper → pulled back to SMA → bounced above SMA within 3 days.
-                Returns True if pattern is complete and price is now above SMA.
-                """
+            # ── Core pattern: Pre-pullback 5-day setup ──
+            # Find pullback day (price touched/fell to SMA), verify 5 days before:
+            #   - ALL 5 days price > SMA
+            #   - >= 3 of 5 days price within near_upper_pct% of upper band
+            def check_setup_before_pullback(closes_all, near_upper_pct=5.0, lookback=20):
                 n = len(closes_all)
-                if n < 30: return False
+                for pb_ago in range(1, lookback):
+                    pb_idx = n - 1 - pb_ago
+                    if pb_idx < 25: break
+                    s_pb, u_pb, _ = band_at(closes_all, pb_idx)
+                    if s_pb is None: break
+                    p_pb = closes_all[pb_idx]
+                    if p_pb > s_pb * 1.01: continue  # not a pullback day
+                    # Check 5 days immediately before the pullback
+                    all_above = True
+                    near_cnt  = 0
+                    for k in range(1, 6):
+                        idx_k = pb_idx - k
+                        if idx_k < 20: all_above = False; break
+                        s_k, u_k, _ = band_at(closes_all, idx_k)
+                        if s_k is None: all_above = False; break
+                        p_k = closes_all[idx_k]
+                        if p_k <= s_k: all_above = False; break
+                        if (u_k - p_k) / u_k * 100 <= near_upper_pct:
+                            near_cnt += 1
+                    if all_above and near_cnt >= 3:
+                        return True, pb_ago
+                return False, -1
 
-                # Step 1: scan backwards to find a near-upper streak
-                for streak_end in range(2, lookback):
-                    # Find streak ending at streak_end days ago
-                    streak_len = 0
-                    for d in range(streak_end, streak_end + min_upper_days + 5):
-                        if d >= n: break
-                        idx = n - d
-                        if idx < 20: break
-                        s, u, _ = calc_band(closes_all[:idx+1])
-                        p = closes_all[idx]
-                        if (u - p) / u * 100 <= upper_pct and p >= s:
-                            streak_len += 1
-                        else:
-                            break
-                    if streak_len < min_upper_days:
-                        continue
+            found_pb5, pb5_ago = check_setup_before_pullback(closes, 5.0)
+            found_pb2, pb2_ago = check_setup_before_pullback(closes, 2.0)
 
-                    # Step 2: after the streak, price must touch or cross below SMA
-                    pullback_day = None
-                    for d in range(1, streak_end):
-                        idx = n - d
-                        if idx < 20: break
-                        s, _, _ = calc_band(closes_all[:idx+1])
-                        p = closes_all[idx]
-                        if p <= s * 1.03:  # touched within 3% of SMA or below
-                            pullback_day = d
-                            break
-                    if pullback_day is None:
-                        continue
+            cur_dist_sma = (cur - sma) / sma * 100
+            pullback_5pct = found_pb5 and abs(cur_dist_sma) <= 5
+            pullback_2pct = found_pb2 and abs(cur_dist_sma) <= 5
 
-                    # Step 3: within 3 days of pullback, price bounced above SMA
-                    bounce_found = False
-                    for d in range(1, min(pullback_day, 4)):  # up to 3 days after pullback
-                        idx = n - d
-                        if idx < 20: break
-                        s, _, _ = calc_band(closes_all[:idx+1])
-                        p = closes_all[idx]
-                        if p > s:
-                            bounce_found = True
-                            break
-
-                    # Step 4: current price must be above SMA
-                    if bounce_found and cur > sma:
+            def check_bounce(closes_all, near_upper_pct=5.0, lookback=20):
+                if cur <= sma: return False
+                found, pb_ago = check_setup_before_pullback(closes_all, near_upper_pct, lookback)
+                if not found: return False
+                n = len(closes_all)
+                pb_idx = n - 1 - pb_ago
+                for k in range(1, 4):
+                    idx_k = pb_idx + k
+                    if idx_k >= n: break
+                    s_k, _, _ = band_at(closes_all, idx_k)
+                    if s_k and closes_all[idx_k] > s_k:
                         return True
-
                 return False
 
-            bounce_3d_2pct = bounce_after_pullback(closes, 3, 2.0)
-            bounce_5d_2pct = bounce_after_pullback(closes, 5, 2.0)
-            bounce_3d_5pct = bounce_after_pullback(closes, 3, 5.0)
-            bounce_5d_5pct = bounce_after_pullback(closes, 5, 5.0)
+            bounce_5pct = check_bounce(closes, 5.0)
+            bounce_2pct = check_bounce(closes, 2.0)
+
+            def near_upper_consecutive(closes_all, min_days, pct_threshold):
+                count = 0
+                for d in range(1, min_days + 1):
+                    idx = len(closes_all) - d
+                    if idx < 20: break
+                    s, u, _ = band_at(closes_all, idx)
+                    if s is None: break
+                    p = closes_all[idx]
+                    if p > s and (u - p) / u * 100 <= pct_threshold:
+                        count += 1
+                    else:
+                        break
+                return count >= min_days
+
+            near_upper_2pct_3d = near_upper_consecutive(closes, 3, 2.0)
+            near_upper_2pct_5d = near_upper_consecutive(closes, 5, 2.0)
+            near_upper_5pct_3d = near_upper_consecutive(closes, 3, 5.0)
+            near_upper_5pct_5d = near_upper_consecutive(closes, 5, 5.0)
+
+            bounce_3d_2pct = bounce_2pct
+            bounce_5d_2pct = bounce_2pct
+            bounce_3d_5pct = bounce_5pct
+            bounce_5d_5pct = bounce_5pct
+            pullback_3d_2pct = pullback_2pct
+            pullback_5d_2pct = pullback_2pct
+            pullback_3d_5pct = pullback_5pct
+            pullback_5d_5pct = pullback_5pct
 
             results.append({
                 "ticker": ticker, "price": round(cur,2),
@@ -286,17 +272,26 @@ def fetch_batch(tickers):
                 "bw": round(bw,2), "chg": round(chg,2),
                 "crossLower": cross_lower,
                 "crossSma":   cross_sma,
-                # Currently near upper band (above SMA)
-                "nearUpper2d3":  near_upper_2pct_3d,
-                "nearUpper2d5":  near_upper_2pct_5d,
-                "nearUpper5d3":  near_upper_5pct_3d,
-                "nearUpper5d5":  near_upper_5pct_5d,
-                # Was near upper, now pulled back to SMA
+                # MACD
+                "macd":      round(macd_now, 4),
+                "macdSignal":round(sig_now, 4),
+                "macdHist":  round(hist_now, 4),
+                "macdHistPrev": round(hist_prev, 4),
+                "bullishDiv":   bullish_divergence,
+                "bearishDiv":   bearish_divergence,
+                "macdCrossUp":  macd_cross_up,
+                "macdCrossDown":macd_cross_down,
+                # Near upper
+                "nearUpper2d3": near_upper_2pct_3d,
+                "nearUpper2d5": near_upper_2pct_5d,
+                "nearUpper5d3": near_upper_5pct_3d,
+                "nearUpper5d5": near_upper_5pct_5d,
+                # Pullback to SMA (strict 5-day setup before pullback)
                 "pullback3d2pct": pullback_3d_2pct,
                 "pullback5d2pct": pullback_5d_2pct,
                 "pullback3d5pct": pullback_3d_5pct,
                 "pullback5d5pct": pullback_5d_5pct,
-                # Pulled back to SMA then bounced above SMA within 3 days
+                # Bounce after pullback
                 "bounce3d2pct": bounce_3d_2pct,
                 "bounce5d2pct": bounce_5d_2pct,
                 "bounce3d5pct": bounce_3d_5pct,

@@ -187,48 +187,43 @@ a.alink { color:#3b82f6; text-decoration:none; }
 
   <!-- Signal Summary Panel -->
   <div id="signalPanel" style="display:none;margin-bottom:16px">
-    <div style="color:#94a3b8;font-size:11px;font-weight:700;letter-spacing:2px;margin-bottom:10px">
-      ⚡ 訊號摘要
-    </div>
+    <div style="color:#94a3b8;font-size:11px;font-weight:700;letter-spacing:2px;margin-bottom:12px">⚡ 訊號摘要</div>
 
-    <!-- Bounce after pullback -->
+    <!-- Section helper: renders a titled table of stocks -->
+    <!-- Bounce -->
     <div class="box box-green" style="margin-bottom:10px">
-      <div style="color:#34d399;font-size:11px;font-weight:700;margin-bottom:8px">
-        🔄 回撤反彈（曾貼近上軌 → 回撤中線 → 3日內反彈）
+      <div style="color:#34d399;font-size:11px;font-weight:700;margin-bottom:10px">
+        🔄 回撤反彈
+        <span style="color:#334155;font-weight:400;font-size:10px">（前5日全部高於中線且≥3日靠近上軌 → 回撤至中線 → 3日內反彈回中線上方）</span>
       </div>
-      <div id="sig-bounce" style="display:flex;flex-wrap:wrap;gap:6px">
-        <span style="color:#334155;font-size:11px">無符合股票</span>
-      </div>
+      <div id="sig-bounce-wrap"></div>
     </div>
 
-    <!-- Pullback to SMA -->
+    <!-- Pullback -->
     <div class="box" style="background:#1a0f00;border:1px solid #92400e;margin-bottom:10px">
-      <div style="color:#fb923c;font-size:11px;font-weight:700;margin-bottom:8px">
-        📉 回撤中線（曾貼近上軌，現回撤至中線）
+      <div style="color:#fb923c;font-size:11px;font-weight:700;margin-bottom:10px">
+        📉 回撤中線
+        <span style="color:#334155;font-weight:400;font-size:10px">（前5日全部高於中線且≥3日靠近上軌 → 現回撤至中線附近，尚未反彈）</span>
       </div>
-      <div id="sig-pullback" style="display:flex;flex-wrap:wrap;gap:6px">
-        <span style="color:#334155;font-size:11px">無符合股票</span>
-      </div>
+      <div id="sig-pullback-wrap"></div>
     </div>
 
-    <!-- Near upper band -->
-    <div class="box" style="background:#0f0a1e;border:1px solid #5b21b6;margin-bottom:10px">
-      <div style="color:#a78bfa;font-size:11px;font-weight:700;margin-bottom:8px">
-        🔝 現時貼近上軌（連續N天在上軌附近且高於中線）
+    <!-- MACD Divergence -->
+    <div class="box" style="background:#0a0f1e;border:1px solid #1e40af;margin-bottom:10px">
+      <div style="color:#60a5fa;font-size:11px;font-weight:700;margin-bottom:10px">
+        📊 MACD 背離 / 金叉
+        <span style="color:#334155;font-weight:400;font-size:10px">（價格與MACD走勢背向，或MACD金叉死叉）</span>
       </div>
-      <div id="sig-nearupper" style="display:flex;flex-wrap:wrap;gap:6px">
-        <span style="color:#334155;font-size:11px">無符合股票</span>
-      </div>
+      <div id="sig-macd-wrap"></div>
     </div>
 
-    <!-- Crossovers -->
-    <div class="box box-blue" style="margin-bottom:0">
-      <div style="color:#60a5fa;font-size:11px;font-weight:700;margin-bottom:8px">
-        ⬆ 升穿訊號（昨日低於，今日升穿）
+    <!-- Near upper -->
+    <div class="box" style="background:#0f0a1e;border:1px solid #5b21b6;margin-bottom:0">
+      <div style="color:#a78bfa;font-size:11px;font-weight:700;margin-bottom:10px">
+        🔝 現時貼近上軌
+        <span style="color:#334155;font-weight:400;font-size:10px">（連續N天價格在上軌附近且高於中線）</span>
       </div>
-      <div id="sig-cross" style="display:flex;flex-wrap:wrap;gap:6px">
-        <span style="color:#334155;font-size:11px">無符合股票</span>
-      </div>
+      <div id="sig-nearupper-wrap"></div>
     </div>
   </div>
 
@@ -584,65 +579,100 @@ function toggleSignalPanel() {
   if (!shown) updateSignalPanel();
 }
 
-function sigChip(s, label, color, bg) {
-  const lp = ((s.price - s.lower) / s.lower * 100).toFixed(1);
-  const sp = ((s.price - s.sma)   / s.sma   * 100).toFixed(1);
-  const tags = (s.tags||[]).map(t=>`<span class="idx ${t.toLowerCase()}">${t}</span>`).join('');
-  return `<div style="background:${bg};border:1px solid ${color}40;border-radius:6px;padding:6px 10px;min-width:120px;cursor:pointer"
-              onclick="window.open('https://finance.yahoo.com/quote/${s.ticker}','_blank')">
-    <div style="display:flex;align-items:center;gap:4px;margin-bottom:3px">
-      ${tags}
-      <span style="color:#f1f5f9;font-weight:700;font-size:13px">${s.ticker}</span>
-    </div>
-    <div style="font-size:9px;color:${color};margin-bottom:2px">${label}</div>
-    <div style="font-size:10px;color:#94a3b8">$${s.price.toFixed(2)}</div>
-    <div style="font-size:9px;color:#64748b">中線${sp>=0?'+':''}${sp}% ｜ 下軌+${lp}%</div>
-  </div>`;
+function sigTable(stocks, cols, emptyMsg) {
+  // cols = [{key, label, fmt}]
+  if (!stocks.length) return `<p style="color:#334155;font-size:11px;padding:4px 0">${emptyMsg}</p>`;
+  const thead = `<tr>${cols.map(c=>`<th style="padding:6px 10px;color:#334155;font-size:10px;text-align:${c.align||'right'};border-bottom:1px solid #0f172a;white-space:nowrap;letter-spacing:1px">${c.label}</th>`).join('')}</tr>`;
+  const rows  = stocks.map((s,i) => {
+    const bg = i%2===0?'transparent':'rgba(255,255,255,0.015)';
+    const tds = cols.map(c => {
+      const v   = c.fmt ? c.fmt(s) : s[c.key];
+      const col = c.color ? c.color(s) : '#cbd5e1';
+      const al  = c.align || 'right';
+      return `<td style="padding:6px 10px;color:${col};text-align:${al};font-size:12px;white-space:nowrap">${v}</td>`;
+    }).join('');
+    return `<tr style="background:${bg}">${tds}</tr>`;
+  }).join('');
+  return `<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse"><thead>${thead}</thead><tbody>${rows}</tbody></table></div>`;
 }
+
+const SIG_COLS = [
+  { key:'ticker', label:'代號', align:'left',
+    fmt: s => `<a href="https://finance.yahoo.com/quote/${s.ticker}" target="_blank" style="color:#f1f5f9;font-weight:700;text-decoration:none">${s.ticker}</a>`,
+    color: ()=>'#f1f5f9' },
+  { key:'tags', label:'指數', align:'left',
+    fmt: s => (s.tags||[]).map(t=>`<span class="idx ${t.toLowerCase()}">${t}</span>`).join(''),
+    color: ()=>'#cbd5e1' },
+  { key:'signal', label:'訊號', align:'left',
+    fmt: s => s._sigLabel || '',
+    color: s => s._sigColor || '#cbd5e1' },
+  { key:'price', label:'現價($)', fmt: s=>`$${s.price.toFixed(2)}`, color: ()=>'#e2e8f0' },
+  { key:'chg',   label:'漲跌(%)',
+    fmt: s=>`${s.chg>=0?'+':''}${s.chg.toFixed(2)}%`,
+    color: s=>s.chg>=0?'#4ade80':s.chg>-1?'#facc15':'#f87171' },
+  { key:'sma', label:'中線($)', fmt: s=>`$${s.sma.toFixed(2)}`, color:()=>'#94a3b8' },
+  { key:'distSma', label:'離中線(%)',
+    fmt: s => { const p=((s.price-s.sma)/s.sma*100); return `${p>=0?'+':''}${p.toFixed(2)}%`; },
+    color: s => { const p=(s.price-s.sma)/s.sma*100; return p<-5?'#f87171':p<-2?'#fb923c':p<0?'#facc15':'#4ade80'; } },
+  { key:'lower', label:'下軌($)', fmt: s=>`$${s.lower.toFixed(2)}`, color:()=>'#f87171' },
+  { key:'distLow', label:'離下軌(%)',
+    fmt: s => { const p=((s.price-s.lower)/s.lower*100); return `${p>=0?'+':''}${p.toFixed(2)}%`; },
+    color: s => { const p=(s.price-s.lower)/s.lower*100; return p<0?'#f87171':p<1?'#fb923c':p<3?'#facc15':'#4ade80'; } },
+  { key:'macd', label:'MACD',
+    fmt: s => s.macd!=null ? s.macd.toFixed(3) : '—',
+    color: s => s.macd>0?'#4ade80':'#f87171' },
+  { key:'macdHist', label:'MACD柱',
+    fmt: s => s.macdHist!=null ? s.macdHist.toFixed(3) : '—',
+    color: s => { if(s.macdHist==null) return '#64748b'; return s.macdHist>s.macdHistPrev?'#4ade80':'#f87171'; } },
+];
 
 function updateSignalPanel() {
   if (!allStocks.length) return;
 
-  // Bounce
-  const bounce = allStocks.filter(s=>s.bounce5d2pct||s.bounce3d2pct||s.bounce5d5pct||s.bounce3d5pct);
-  const bEl = document.getElementById('sig-bounce');
-  bEl.innerHTML = bounce.length
-    ? bounce.map(s => {
-        const lbl = s.bounce5d2pct?'5天/2%回撤反彈':s.bounce3d2pct?'3天/2%回撤反彈':s.bounce5d5pct?'5天/5%回撤反彈':'3天/5%回撤反彈';
-        return sigChip(s, lbl, '#34d399', '#0a1f12');
-      }).join('')
-    : '<span style="color:#334155;font-size:11px">無符合股票</span>';
+  const f2 = n => typeof n==='number'?n.toFixed(2):'—';
 
-  // Pullback
-  const pb = allStocks.filter(s=>(s.pullback3d2pct||s.pullback5d2pct||s.pullback3d5pct||s.pullback5d5pct)
-    && !(s.bounce3d2pct||s.bounce5d2pct||s.bounce3d5pct||s.bounce5d5pct));
-  const pEl = document.getElementById('sig-pullback');
-  pEl.innerHTML = pb.length
-    ? pb.map(s => {
-        const lbl = s.pullback5d2pct?'5天/2%回撤中線':s.pullback3d2pct?'3天/2%回撤中線':s.pullback5d5pct?'5天/5%回撤中線':'3天/5%回撤中線';
-        return sigChip(s, lbl, '#fb923c', '#1a0f00');
-      }).join('')
-    : '<span style="color:#334155;font-size:11px">無符合股票</span>';
+  // Bounce
+  const bounceStocks = allStocks
+    .filter(s=>s.bounce5d2pct||s.bounce3d2pct||s.bounce5d5pct||s.bounce3d5pct)
+    .map(s=>({...s, _sigLabel: s.bounce5d2pct?'5天/2%':s.bounce3d2pct?'3天/2%':s.bounce5d5pct?'5天/5%':'3天/5%', _sigColor:'#34d399'}));
+  document.getElementById('sig-bounce-wrap').innerHTML = sigTable(bounceStocks, SIG_COLS, '無符合股票');
+
+  // Pullback (not yet bounced)
+  const pbStocks = allStocks
+    .filter(s=>(s.pullback3d2pct||s.pullback5d2pct||s.pullback3d5pct||s.pullback5d5pct)
+             && !(s.bounce3d2pct||s.bounce5d2pct||s.bounce3d5pct||s.bounce5d5pct))
+    .map(s=>({...s, _sigLabel: s.pullback5d2pct?'5天/2%':s.pullback3d2pct?'3天/2%':s.pullback5d5pct?'5天/5%':'3天/5%', _sigColor:'#fb923c'}));
+  document.getElementById('sig-pullback-wrap').innerHTML = sigTable(pbStocks, SIG_COLS, '無符合股票');
+
+  // MACD
+  const MACD_COLS = [
+    ...SIG_COLS.slice(0,4), // ticker, tags, signal, price
+    { key:'chg', label:'漲跌(%)',
+      fmt: s=>`${s.chg>=0?'+':''}${s.chg.toFixed(2)}%`,
+      color: s=>s.chg>=0?'#4ade80':s.chg>-1?'#facc15':'#f87171' },
+    { key:'macd',     label:'MACD',     fmt:s=>s.macd!=null?s.macd.toFixed(3):'—',     color:s=>s.macd>0?'#4ade80':'#f87171' },
+    { key:'macdSignal',label:'訊號線',  fmt:s=>s.macdSignal!=null?s.macdSignal.toFixed(3):'—', color:()=>'#94a3b8' },
+    { key:'macdHist', label:'柱狀',     fmt:s=>s.macdHist!=null?s.macdHist.toFixed(3):'—',
+      color:s=>s.macdHist!=null?(s.macdHist>s.macdHistPrev?'#4ade80':'#f87171'):'#64748b' },
+    { key:'distSma',  label:'離中線(%)',
+      fmt:s=>{const p=((s.price-s.sma)/s.sma*100);return `${p>=0?'+':''}${p.toFixed(2)}%`;},
+      color:s=>{const p=(s.price-s.sma)/s.sma*100;return p<-5?'#f87171':p<0?'#fb923c':'#4ade80';} },
+    { key:'distLow',  label:'離下軌(%)',
+      fmt:s=>{const p=((s.price-s.lower)/s.lower*100);return `${p>=0?'+':''}${p.toFixed(2)}%`;},
+      color:s=>{const p=(s.price-s.lower)/s.lower*100;return p<0?'#f87171':p<2?'#fb923c':'#4ade80';} },
+  ];
+  const macdStocks = allStocks.filter(s=>s.bullishDiv||s.bearishDiv||s.macdCrossUp||s.macdCrossDown)
+    .map(s=>({...s,
+      _sigLabel: s.bullishDiv?'📈 看漲背離':s.bearishDiv?'📉 看跌背離':s.macdCrossUp?'⬆ MACD金叉':'⬇ MACD死叉',
+      _sigColor: s.bullishDiv||s.macdCrossUp?'#4ade80':'#f87171'
+    }));
+  document.getElementById('sig-macd-wrap').innerHTML = sigTable(macdStocks, MACD_COLS, '無符合股票');
 
   // Near upper
-  const nu = allStocks.filter(s=>s.nearUpper2d3||s.nearUpper2d5||s.nearUpper5d3||s.nearUpper5d5);
-  const nEl = document.getElementById('sig-nearupper');
-  nEl.innerHTML = nu.length
-    ? nu.map(s => {
-        const lbl = s.nearUpper2d5?'5天/2%貼近上軌':s.nearUpper2d3?'3天/2%貼近上軌':s.nearUpper5d5?'5天/5%貼近上軌':'3天/5%貼近上軌';
-        return sigChip(s, lbl, '#a78bfa', '#0f0a1e');
-      }).join('')
-    : '<span style="color:#334155;font-size:11px">無符合股票</span>';
-
-  // Crossovers
-  const cross = allStocks.filter(s=>s.crossLower||s.crossSma);
-  const cEl = document.getElementById('sig-cross');
-  cEl.innerHTML = cross.length
-    ? cross.map(s => {
-        const lbl = s.crossLower && s.crossSma ? '升穿下軌+中線' : s.crossLower ? '升穿下軌' : '升穿中線';
-        return sigChip(s, lbl, '#60a5fa', '#0a1220');
-      }).join('')
-    : '<span style="color:#334155;font-size:11px">無符合股票</span>';
+  const nuStocks = allStocks
+    .filter(s=>s.nearUpper2d3||s.nearUpper2d5||s.nearUpper5d3||s.nearUpper5d5)
+    .map(s=>({...s, _sigLabel:s.nearUpper2d5?'5天/2%':s.nearUpper2d3?'3天/2%':s.nearUpper5d5?'5天/5%':'3天/5%', _sigColor:'#a78bfa'}));
+  document.getElementById('sig-nearupper-wrap').innerHTML = sigTable(nuStocks, SIG_COLS, '無符合股票');
 }
 
 // ── AI ──
