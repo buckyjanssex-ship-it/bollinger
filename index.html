@@ -76,6 +76,7 @@ a.alink { color:#3b82f6; text-decoration:none; }
     </div>
     <div style="display:flex;gap:8px;align-items:center">
       <button class="btn btn-blue" onclick="startPolling()">↻ 重新整理</button>
+      <button class="btn" id="sigPanelBtn" onclick="toggleSignalPanel()" style="background:#0f172a;border:1px solid #1e3a5f;color:#64748b">⚡ 訊號摘要</button>
       <button class="btn btn-purple" id="aiBtn" onclick="runAI()" disabled>✦ AI 解讀</button>
     </div>
   </div>
@@ -109,11 +110,21 @@ a.alink { color:#3b82f6; text-decoration:none; }
         <option value="5">中線±5%內</option>
       </select>
     </div>
-    <!-- Crossover filter -->
-    <div style="display:flex;gap:5px;align-items:center">
-      <span style="color:#475569;font-size:11px">升穿訊號</span>
-      <button class="filter-btn" id="c-lower" onclick="toggleCross('lower')">⬆ 升穿下軌</button>
-      <button class="filter-btn" id="c-sma"   onclick="toggleCross('sma')">⬆ 升穿中線</button>
+    <!-- Signal filter -->
+    <div style="display:flex;gap:5px;align-items:center;flex-wrap:wrap">
+      <span style="color:#475569;font-size:11px">訊號篩選</span>
+      <button class="filter-btn" id="c-lower"      onclick="toggleCross('lower')">⬆ 升穿下軌</button>
+      <button class="filter-btn" id="c-sma"        onclick="toggleCross('sma')">⬆ 升穿中線</button>
+      <button class="filter-btn" id="c-pb3d2"      onclick="toggleCross('pb3d2')">📉 回撤中線(3天/2%)</button>
+      <button class="filter-btn" id="c-pb5d2"      onclick="toggleCross('pb5d2')">📉 回撤中線(5天/2%)</button>
+      <button class="filter-btn" id="c-pb3d5"      onclick="toggleCross('pb3d5')">📉 回撤中線(3天/5%)</button>
+      <button class="filter-btn" id="c-pb5d5"      onclick="toggleCross('pb5d5')">📉 回撤中線(5天/5%)</button>
+      <button class="filter-btn" id="c-nu3d2"      onclick="toggleCross('nu3d2')">🔝 貼近上軌(3天/2%)</button>
+      <button class="filter-btn" id="c-nu5d5"      onclick="toggleCross('nu5d5')">🔝 貼近上軌(5天/5%)</button>
+      <button class="filter-btn" id="c-bnc3d2"     onclick="toggleCross('bnc3d2')">🔄 回撤反彈(3天/2%)</button>
+      <button class="filter-btn" id="c-bnc5d2"     onclick="toggleCross('bnc5d2')">🔄 回撤反彈(5天/2%)</button>
+      <button class="filter-btn" id="c-bnc3d5"     onclick="toggleCross('bnc3d5')">🔄 回撤反彈(3天/5%)</button>
+      <button class="filter-btn" id="c-bnc5d5"     onclick="toggleCross('bnc5d5')">🔄 回撤反彈(5天/5%)</button>
     </div>
     <!-- Sort -->
     <div style="display:flex;gap:5px;align-items:center">
@@ -130,6 +141,9 @@ a.alink { color:#3b82f6; text-decoration:none; }
       <div class="stat"><div class="stat-num" id="cnt-below"   style="color:#facc15">—</div><div class="stat-lbl">低於中線</div></div>
       <div class="stat"><div class="stat-num" id="cnt-crossL"  style="color:#4ade80">—</div><div class="stat-lbl">升穿下軌</div></div>
       <div class="stat"><div class="stat-num" id="cnt-crossS"  style="color:#60a5fa">—</div><div class="stat-lbl">升穿中線</div></div>
+      <div class="stat"><div class="stat-num" id="cnt-pb"      style="color:#fb923c">—</div><div class="stat-lbl">回撤中線</div></div>
+      <div class="stat"><div class="stat-num" id="cnt-nu"   style="color:#a78bfa">—</div><div class="stat-lbl">貼近上軌</div></div>
+      <div class="stat"><div class="stat-num" id="cnt-bnc" style="color:#34d399">—</div><div class="stat-lbl">回撤反彈</div></div>
     </div>
   </div>
 </div>
@@ -169,6 +183,53 @@ a.alink { color:#3b82f6; text-decoration:none; }
   <div class="box box-purple" id="aiBox" style="display:none">
     <div style="color:#a78bfa;font-size:10px;letter-spacing:3px;margin-bottom:8px">✦ AI 技術分析</div>
     <div id="aiText" style="color:#e2e8f0;font-size:13px;line-height:1.9;white-space:pre-wrap"></div>
+  </div>
+
+  <!-- Signal Summary Panel -->
+  <div id="signalPanel" style="display:none;margin-bottom:16px">
+    <div style="color:#94a3b8;font-size:11px;font-weight:700;letter-spacing:2px;margin-bottom:10px">
+      ⚡ 訊號摘要
+    </div>
+
+    <!-- Bounce after pullback -->
+    <div class="box box-green" style="margin-bottom:10px">
+      <div style="color:#34d399;font-size:11px;font-weight:700;margin-bottom:8px">
+        🔄 回撤反彈（曾貼近上軌 → 回撤中線 → 3日內反彈）
+      </div>
+      <div id="sig-bounce" style="display:flex;flex-wrap:wrap;gap:6px">
+        <span style="color:#334155;font-size:11px">無符合股票</span>
+      </div>
+    </div>
+
+    <!-- Pullback to SMA -->
+    <div class="box" style="background:#1a0f00;border:1px solid #92400e;margin-bottom:10px">
+      <div style="color:#fb923c;font-size:11px;font-weight:700;margin-bottom:8px">
+        📉 回撤中線（曾貼近上軌，現回撤至中線）
+      </div>
+      <div id="sig-pullback" style="display:flex;flex-wrap:wrap;gap:6px">
+        <span style="color:#334155;font-size:11px">無符合股票</span>
+      </div>
+    </div>
+
+    <!-- Near upper band -->
+    <div class="box" style="background:#0f0a1e;border:1px solid #5b21b6;margin-bottom:10px">
+      <div style="color:#a78bfa;font-size:11px;font-weight:700;margin-bottom:8px">
+        🔝 現時貼近上軌（連續N天在上軌附近且高於中線）
+      </div>
+      <div id="sig-nearupper" style="display:flex;flex-wrap:wrap;gap:6px">
+        <span style="color:#334155;font-size:11px">無符合股票</span>
+      </div>
+    </div>
+
+    <!-- Crossovers -->
+    <div class="box box-blue" style="margin-bottom:0">
+      <div style="color:#60a5fa;font-size:11px;font-weight:700;margin-bottom:8px">
+        ⬆ 升穿訊號（昨日低於，今日升穿）
+      </div>
+      <div id="sig-cross" style="display:flex;flex-wrap:wrap;gap:6px">
+        <span style="color:#334155;font-size:11px">無符合股票</span>
+      </div>
+    </div>
   </div>
 
   <!-- Table -->
@@ -214,9 +275,12 @@ a.alink { color:#3b82f6; text-decoration:none; }
       <span class="idx nq">NQ</span>納斯達克
       <span class="idx sp">SP</span>標普500
     </div>
-    <div style="margin-left:12px;display:flex;gap:8px;align-items:center;flex-wrap:wrap">
-      <span style="font-size:9px;background:#14532d;color:#4ade80;padding:1px 6px;border-radius:3px">⬆ 升穿下軌</span>昨低於下軌，今升穿
-      <span style="font-size:9px;background:#1e3a5f;color:#60a5fa;padding:1px 6px;border-radius:3px">⬆ 升穿中線</span>昨低於中線，今升穿
+    <div style="margin-top:8px;display:flex;gap:8px;align-items:center;flex-wrap:wrap;width:100%">
+      <span style="font-size:9px;background:#14532d;color:#4ade80;padding:1px 6px;border-radius:3px">⬆ 升穿下軌</span><span style="color:#334155;font-size:10px">昨跌破下軌，今升穿</span>
+      <span style="font-size:9px;background:#1e3a5f;color:#60a5fa;padding:1px 6px;border-radius:3px">⬆ 升穿中線</span><span style="color:#334155;font-size:10px">昨低於中線，今升穿</span>
+      <span style="font-size:9px;background:#2d1b00;color:#fb923c;padding:1px 6px;border-radius:3px">📉 回撤中線</span><span style="color:#334155;font-size:10px">曾連續N天貼近上軌，現回撤到中線±5%</span>
+      <span style="font-size:9px;background:#1a2a4a;color:#a78bfa;padding:1px 6px;border-radius:3px">🔝 貼近上軌</span><span style="color:#334155;font-size:10px">連續N天在上軌2%/5%內且高於中線</span>
+      <span style="font-size:9px;background:#1a3a2a;color:#34d399;padding:1px 6px;border-radius:3px">🔄 回撤反彈</span><span style="color:#334155;font-size:10px">曾連續N天貼近上軌 → 回撤至中線 → 3日內反彈回中線上方</span>
     </div>
   </div>
   <div class="note">
@@ -341,9 +405,29 @@ function loadStocks(d, partial) {
     `${partial?'掃描中（部分）':'最後更新'}：${d.updatedAtStr} ｜ ${d.count} 檔`;
   document.getElementById('aiBtn').disabled = false;
   renderTable();
+  // Update signal panel if it's open
+  if (document.getElementById('signalPanel').style.display !== 'none') {
+    updateSignalPanel();
+  }
 }
 
 // ── Filters ──
+// Map filter key → stock field
+const CROSS_MAP = {
+  'lower':  'crossLower',
+  'sma':    'crossSma',
+  'pb3d2':  'pullback3d2pct',
+  'pb5d2':  'pullback5d2pct',
+  'pb3d5':  'pullback3d5pct',
+  'pb5d5':  'pullback5d5pct',
+  'nu3d2':  'nearUpper2d3',
+  'nu5d5':  'nearUpper5d5',
+  'bnc3d2': 'bounce3d2pct',
+  'bnc5d2': 'bounce5d2pct',
+  'bnc3d5': 'bounce3d5pct',
+  'bnc5d5': 'bounce5d5pct',
+};
+
 function toggleCross(type) {
   if (crossFilter.has(type)) {
     crossFilter.delete(type);
@@ -401,9 +485,11 @@ function renderTable() {
     if (sf === 'above' && smaPct <  0)              return false;
     if (sf === '2'     && Math.abs(smaPct) > 2)     return false;
     if (sf === '5'     && Math.abs(smaPct) > 5)     return false;
-    // Crossover filter
-    if (crossFilter.has('lower') && !s.crossLower)  return false;
-    if (crossFilter.has('sma')   && !s.crossSma)    return false;
+    // Signal filters — all selected must match (AND logic)
+    for (const f of crossFilter) {
+      const field = CROSS_MAP[f];
+      if (field && !s[field]) return false;
+    }
     return true;
   }).sort((a,b) => {
     const aLow = (a.price-a.lower)/a.lower*100;
@@ -422,6 +508,9 @@ function renderTable() {
   document.getElementById('cnt-below').textContent  = filtered.filter(s=>s.price<s.sma).length;
   document.getElementById('cnt-crossL').textContent = allStocks.filter(s=>s.crossLower).length;
   document.getElementById('cnt-crossS').textContent = allStocks.filter(s=>s.crossSma).length;
+  document.getElementById('cnt-pb').textContent     = allStocks.filter(s=>s.pullback3d2pct||s.pullback5d2pct||s.pullback3d5pct||s.pullback5d5pct).length;
+  document.getElementById('cnt-nu').textContent     = allStocks.filter(s=>s.nearUpper2d3||s.nearUpper2d5||s.nearUpper5d3||s.nearUpper5d5).length;
+  document.getElementById('cnt-bnc').textContent    = allStocks.filter(s=>s.bounce3d2pct||s.bounce5d2pct||s.bounce3d5pct||s.bounce5d5pct).length;
 
   const tbody = document.getElementById('tbody');
   if (!filtered.length && allStocks.length>0) {
@@ -441,9 +530,19 @@ function renderTable() {
     const brk = lowerPct<0 ? '<span class="brk">破位</span>' : '';
     const tags   = (s.tags||[]).map(t=>`<span class="idx ${t.toLowerCase()}">${t}</span>`).join('');
     const crossBadges = [
-      s.crossLower ? '<span style="font-size:9px;background:#14532d;color:#4ade80;padding:1px 5px;border-radius:3px;margin-right:3px">⬆ 升穿下軌</span>' : '',
-      s.crossSma   ? '<span style="font-size:9px;background:#1e3a5f;color:#60a5fa;padding:1px 5px;border-radius:3px;margin-right:3px">⬆ 升穿中線</span>' : '',
-    ].join('');
+      s.crossLower      ? '<span style="font-size:9px;background:#14532d;color:#4ade80;padding:1px 5px;border-radius:3px;margin-right:2px;white-space:nowrap">⬆ 升穿下軌</span>' : '',
+      s.crossSma        ? '<span style="font-size:9px;background:#1e3a5f;color:#60a5fa;padding:1px 5px;border-radius:3px;margin-right:2px;white-space:nowrap">⬆ 升穿中線</span>' : '',
+      s.pullback5d2pct  ? '<span style="font-size:9px;background:#2d1b00;color:#fb923c;padding:1px 5px;border-radius:3px;margin-right:2px;white-space:nowrap">📉 回撤中線(5天/2%)</span>' : '',
+      s.pullback3d2pct && !s.pullback5d2pct ? '<span style="font-size:9px;background:#2d1b00;color:#fb923c;padding:1px 5px;border-radius:3px;margin-right:2px;white-space:nowrap">📉 回撤中線(3天/2%)</span>' : '',
+      s.pullback5d5pct && !s.pullback5d2pct ? '<span style="font-size:9px;background:#2d1b00;color:#fbbf24;padding:1px 5px;border-radius:3px;margin-right:2px;white-space:nowrap">📉 回撤中線(5天/5%)</span>' : '',
+      s.pullback3d5pct && !s.pullback3d2pct && !s.pullback5d5pct ? '<span style="font-size:9px;background:#2d1b00;color:#fbbf24;padding:1px 5px;border-radius:3px;margin-right:2px;white-space:nowrap">📉 回撤中線(3天/5%)</span>' : '',
+      s.nearUpper2d5    ? '<span style="font-size:9px;background:#1a2a4a;color:#a78bfa;padding:1px 5px;border-radius:3px;margin-right:2px;white-space:nowrap">🔝 貼近上軌(5天/2%)</span>' : '',
+      s.nearUpper2d3 && !s.nearUpper2d5 ? '<span style="font-size:9px;background:#1a2a4a;color:#a78bfa;padding:1px 5px;border-radius:3px;margin-right:2px;white-space:nowrap">🔝 貼近上軌(3天/2%)</span>' : '',
+      s.bounce5d2pct ? '<span style="font-size:9px;background:#1a3a2a;color:#34d399;padding:1px 5px;border-radius:3px;margin-right:2px;white-space:nowrap">🔄 回撤反彈(5天/2%)</span>' : '',
+      s.bounce3d2pct && !s.bounce5d2pct ? '<span style="font-size:9px;background:#1a3a2a;color:#34d399;padding:1px 5px;border-radius:3px;margin-right:2px;white-space:nowrap">🔄 回撤反彈(3天/2%)</span>' : '',
+      s.bounce5d5pct && !s.bounce5d2pct ? '<span style="font-size:9px;background:#1a3a2a;color:#6ee7b7;padding:1px 5px;border-radius:3px;margin-right:2px;white-space:nowrap">🔄 回撤反彈(5天/5%)</span>' : '',
+      s.bounce3d5pct && !s.bounce3d2pct && !s.bounce5d5pct ? '<span style="font-size:9px;background:#1a3a2a;color:#6ee7b7;padding:1px 5px;border-radius:3px;margin-right:2px;white-space:nowrap">🔄 回撤反彈(3天/5%)</span>' : '',
+    ].filter(Boolean).join('');
 
     // Position bar — shows price position between lower and upper band
     const cl  = Math.max(0, Math.min(1, (s.price-s.lower)/(s.upper-s.lower)));
@@ -471,6 +570,79 @@ function renderTable() {
       </td>
     </tr>`;
   }).join('');
+}
+
+// ── Signal Panel ──
+function toggleSignalPanel() {
+  const panel = document.getElementById('signalPanel');
+  const btn   = document.getElementById('sigPanelBtn');
+  const shown = panel.style.display !== 'none';
+  panel.style.display = shown ? 'none' : 'block';
+  btn.style.background = shown ? '#0f172a' : '#1e3a5f';
+  btn.style.color      = shown ? '#64748b' : '#93c5fd';
+  btn.style.borderColor= shown ? '#1e293b' : '#3b82f6';
+  if (!shown) updateSignalPanel();
+}
+
+function sigChip(s, label, color, bg) {
+  const lp = ((s.price - s.lower) / s.lower * 100).toFixed(1);
+  const sp = ((s.price - s.sma)   / s.sma   * 100).toFixed(1);
+  const tags = (s.tags||[]).map(t=>`<span class="idx ${t.toLowerCase()}">${t}</span>`).join('');
+  return `<div style="background:${bg};border:1px solid ${color}40;border-radius:6px;padding:6px 10px;min-width:120px;cursor:pointer"
+              onclick="window.open('https://finance.yahoo.com/quote/${s.ticker}','_blank')">
+    <div style="display:flex;align-items:center;gap:4px;margin-bottom:3px">
+      ${tags}
+      <span style="color:#f1f5f9;font-weight:700;font-size:13px">${s.ticker}</span>
+    </div>
+    <div style="font-size:9px;color:${color};margin-bottom:2px">${label}</div>
+    <div style="font-size:10px;color:#94a3b8">$${s.price.toFixed(2)}</div>
+    <div style="font-size:9px;color:#64748b">中線${sp>=0?'+':''}${sp}% ｜ 下軌+${lp}%</div>
+  </div>`;
+}
+
+function updateSignalPanel() {
+  if (!allStocks.length) return;
+
+  // Bounce
+  const bounce = allStocks.filter(s=>s.bounce5d2pct||s.bounce3d2pct||s.bounce5d5pct||s.bounce3d5pct);
+  const bEl = document.getElementById('sig-bounce');
+  bEl.innerHTML = bounce.length
+    ? bounce.map(s => {
+        const lbl = s.bounce5d2pct?'5天/2%回撤反彈':s.bounce3d2pct?'3天/2%回撤反彈':s.bounce5d5pct?'5天/5%回撤反彈':'3天/5%回撤反彈';
+        return sigChip(s, lbl, '#34d399', '#0a1f12');
+      }).join('')
+    : '<span style="color:#334155;font-size:11px">無符合股票</span>';
+
+  // Pullback
+  const pb = allStocks.filter(s=>(s.pullback3d2pct||s.pullback5d2pct||s.pullback3d5pct||s.pullback5d5pct)
+    && !(s.bounce3d2pct||s.bounce5d2pct||s.bounce3d5pct||s.bounce5d5pct));
+  const pEl = document.getElementById('sig-pullback');
+  pEl.innerHTML = pb.length
+    ? pb.map(s => {
+        const lbl = s.pullback5d2pct?'5天/2%回撤中線':s.pullback3d2pct?'3天/2%回撤中線':s.pullback5d5pct?'5天/5%回撤中線':'3天/5%回撤中線';
+        return sigChip(s, lbl, '#fb923c', '#1a0f00');
+      }).join('')
+    : '<span style="color:#334155;font-size:11px">無符合股票</span>';
+
+  // Near upper
+  const nu = allStocks.filter(s=>s.nearUpper2d3||s.nearUpper2d5||s.nearUpper5d3||s.nearUpper5d5);
+  const nEl = document.getElementById('sig-nearupper');
+  nEl.innerHTML = nu.length
+    ? nu.map(s => {
+        const lbl = s.nearUpper2d5?'5天/2%貼近上軌':s.nearUpper2d3?'3天/2%貼近上軌':s.nearUpper5d5?'5天/5%貼近上軌':'3天/5%貼近上軌';
+        return sigChip(s, lbl, '#a78bfa', '#0f0a1e');
+      }).join('')
+    : '<span style="color:#334155;font-size:11px">無符合股票</span>';
+
+  // Crossovers
+  const cross = allStocks.filter(s=>s.crossLower||s.crossSma);
+  const cEl = document.getElementById('sig-cross');
+  cEl.innerHTML = cross.length
+    ? cross.map(s => {
+        const lbl = s.crossLower && s.crossSma ? '升穿下軌+中線' : s.crossLower ? '升穿下軌' : '升穿中線';
+        return sigChip(s, lbl, '#60a5fa', '#0a1220');
+      }).join('')
+    : '<span style="color:#334155;font-size:11px">無符合股票</span>';
 }
 
 // ── AI ──
