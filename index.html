@@ -113,18 +113,16 @@ a.alink { color:#3b82f6; text-decoration:none; }
     <!-- Signal filter -->
     <div style="display:flex;gap:5px;align-items:center;flex-wrap:wrap">
       <span style="color:#475569;font-size:11px">訊號篩選</span>
-      <button class="filter-btn" id="c-lower"      onclick="toggleCross('lower')">⬆ 升穿下軌</button>
-      <button class="filter-btn" id="c-sma"        onclick="toggleCross('sma')">⬆ 升穿中線</button>
-      <button class="filter-btn" id="c-pb3d2"      onclick="toggleCross('pb3d2')">📉 回撤中線(3天/2%)</button>
-      <button class="filter-btn" id="c-pb5d2"      onclick="toggleCross('pb5d2')">📉 回撤中線(5天/2%)</button>
-      <button class="filter-btn" id="c-pb3d5"      onclick="toggleCross('pb3d5')">📉 回撤中線(3天/5%)</button>
-      <button class="filter-btn" id="c-pb5d5"      onclick="toggleCross('pb5d5')">📉 回撤中線(5天/5%)</button>
-      <button class="filter-btn" id="c-nu3d2"      onclick="toggleCross('nu3d2')">🔝 貼近上軌(3天/2%)</button>
-      <button class="filter-btn" id="c-nu5d5"      onclick="toggleCross('nu5d5')">🔝 貼近上軌(5天/5%)</button>
-      <button class="filter-btn" id="c-bnc3d2"     onclick="toggleCross('bnc3d2')">🔄 回撤反彈(3天/2%)</button>
-      <button class="filter-btn" id="c-bnc5d2"     onclick="toggleCross('bnc5d2')">🔄 回撤反彈(5天/2%)</button>
-      <button class="filter-btn" id="c-bnc3d5"     onclick="toggleCross('bnc3d5')">🔄 回撤反彈(3天/5%)</button>
-      <button class="filter-btn" id="c-bnc5d5"     onclick="toggleCross('bnc5d5')">🔄 回撤反彈(5天/5%)</button>
+      <button class="filter-btn" id="c-lower"   onclick="toggleCross('lower')">⬆ 升穿下軌</button>
+      <button class="filter-btn" id="c-sma"     onclick="toggleCross('sma')">⬆ 升穿中線</button>
+      <button class="filter-btn" id="c-pullback" onclick="toggleCross('pullback')">📉 回撤中線</button>
+      <button class="filter-btn" id="c-bounce"  onclick="toggleCross('bounce')">🔄 回撤反彈</button>
+      <button class="filter-btn" id="c-nu3d2"   onclick="toggleCross('nu3d2')">🔝 貼近上軌(3天/2%)</button>
+      <button class="filter-btn" id="c-nu5d5"   onclick="toggleCross('nu5d5')">🔝 貼近上軌(5天/5%)</button>
+      <button class="filter-btn" id="c-bdiv"    onclick="toggleCross('bdiv')">📈 MACD底背離</button>
+      <button class="filter-btn" id="c-brdiv"   onclick="toggleCross('brdiv')">📉 MACD頂背離</button>
+      <button class="filter-btn" id="c-mcup"    onclick="toggleCross('mcup')">⬆ MACD金叉</button>
+      <button class="filter-btn" id="c-mcdn"    onclick="toggleCross('mcdn')">⬇ MACD死叉</button>
     </div>
     <!-- Sort -->
     <div style="display:flex;gap:5px;align-items:center">
@@ -143,7 +141,8 @@ a.alink { color:#3b82f6; text-decoration:none; }
       <div class="stat"><div class="stat-num" id="cnt-crossS"  style="color:#60a5fa">—</div><div class="stat-lbl">升穿中線</div></div>
       <div class="stat"><div class="stat-num" id="cnt-pb"      style="color:#fb923c">—</div><div class="stat-lbl">回撤中線</div></div>
       <div class="stat"><div class="stat-num" id="cnt-nu"   style="color:#a78bfa">—</div><div class="stat-lbl">貼近上軌</div></div>
-      <div class="stat"><div class="stat-num" id="cnt-bnc" style="color:#34d399">—</div><div class="stat-lbl">回撤反彈</div></div>
+      <div class="stat"><div class="stat-num" id="cnt-bnc"  style="color:#34d399">—</div><div class="stat-lbl">回撤反彈</div></div>
+      <div class="stat"><div class="stat-num" id="cnt-bdiv" style="color:#60a5fa">—</div><div class="stat-lbl">底背離</div></div>
     </div>
   </div>
 </div>
@@ -409,18 +408,18 @@ function loadStocks(d, partial) {
 // ── Filters ──
 // Map filter key → stock field
 const CROSS_MAP = {
-  'lower':  'crossLower',
-  'sma':    'crossSma',
-  'pb3d2':  'pullback3d2pct',
-  'pb5d2':  'pullback5d2pct',
-  'pb3d5':  'pullback3d5pct',
-  'pb5d5':  'pullback5d5pct',
-  'nu3d2':  'nearUpper2d3',
-  'nu5d5':  'nearUpper5d5',
-  'bnc3d2': 'bounce3d2pct',
-  'bnc5d2': 'bounce5d2pct',
-  'bnc3d5': 'bounce3d5pct',
-  'bnc5d5': 'bounce5d5pct',
+  'lower':   'crossLower',
+  'sma':     'crossSma',
+  'pullback':'pullbackToSma',
+  'bounce':  'bounceFromSma',
+  'nu3d2':   'nearUpper3d2pct',
+  'nu5d2':   'nearUpper5d2pct',
+  'nu3d5':   'nearUpper3d5pct',
+  'nu5d5':   'nearUpper5d5pct',
+  'bdiv':    'bullishDiv',
+  'brdiv':   'bearishDiv',
+  'mcup':    'macdCrossUp',
+  'mcdn':    'macdCrossDown',
 };
 
 function toggleCross(type) {
@@ -504,7 +503,8 @@ function renderTable() {
   document.getElementById('cnt-crossL').textContent = allStocks.filter(s=>s.crossLower).length;
   document.getElementById('cnt-crossS').textContent = allStocks.filter(s=>s.crossSma).length;
   document.getElementById('cnt-pb').textContent     = allStocks.filter(s=>s.pullback3d2pct||s.pullback5d2pct||s.pullback3d5pct||s.pullback5d5pct).length;
-  document.getElementById('cnt-nu').textContent     = allStocks.filter(s=>s.nearUpper2d3||s.nearUpper2d5||s.nearUpper5d3||s.nearUpper5d5).length;
+  document.getElementById('cnt-nu').textContent     = allStocks.filter(s=>s.nearUpper3d2pct||s.nearUpper5d2pct||s.nearUpper3d5pct||s.nearUpper5d5pct).length;
+  document.getElementById('cnt-bdiv').textContent   = allStocks.filter(s=>s.bullishDiv).length;
   document.getElementById('cnt-bnc').textContent    = allStocks.filter(s=>s.bounce3d2pct||s.bounce5d2pct||s.bounce3d5pct||s.bounce5d5pct).length;
 
   const tbody = document.getElementById('tbody');
@@ -525,18 +525,16 @@ function renderTable() {
     const brk = lowerPct<0 ? '<span class="brk">破位</span>' : '';
     const tags   = (s.tags||[]).map(t=>`<span class="idx ${t.toLowerCase()}">${t}</span>`).join('');
     const crossBadges = [
-      s.crossLower      ? '<span style="font-size:9px;background:#14532d;color:#4ade80;padding:1px 5px;border-radius:3px;margin-right:2px;white-space:nowrap">⬆ 升穿下軌</span>' : '',
-      s.crossSma        ? '<span style="font-size:9px;background:#1e3a5f;color:#60a5fa;padding:1px 5px;border-radius:3px;margin-right:2px;white-space:nowrap">⬆ 升穿中線</span>' : '',
-      s.pullback5d2pct  ? '<span style="font-size:9px;background:#2d1b00;color:#fb923c;padding:1px 5px;border-radius:3px;margin-right:2px;white-space:nowrap">📉 回撤中線(5天/2%)</span>' : '',
-      s.pullback3d2pct && !s.pullback5d2pct ? '<span style="font-size:9px;background:#2d1b00;color:#fb923c;padding:1px 5px;border-radius:3px;margin-right:2px;white-space:nowrap">📉 回撤中線(3天/2%)</span>' : '',
-      s.pullback5d5pct && !s.pullback5d2pct ? '<span style="font-size:9px;background:#2d1b00;color:#fbbf24;padding:1px 5px;border-radius:3px;margin-right:2px;white-space:nowrap">📉 回撤中線(5天/5%)</span>' : '',
-      s.pullback3d5pct && !s.pullback3d2pct && !s.pullback5d5pct ? '<span style="font-size:9px;background:#2d1b00;color:#fbbf24;padding:1px 5px;border-radius:3px;margin-right:2px;white-space:nowrap">📉 回撤中線(3天/5%)</span>' : '',
-      s.nearUpper2d5    ? '<span style="font-size:9px;background:#1a2a4a;color:#a78bfa;padding:1px 5px;border-radius:3px;margin-right:2px;white-space:nowrap">🔝 貼近上軌(5天/2%)</span>' : '',
-      s.nearUpper2d3 && !s.nearUpper2d5 ? '<span style="font-size:9px;background:#1a2a4a;color:#a78bfa;padding:1px 5px;border-radius:3px;margin-right:2px;white-space:nowrap">🔝 貼近上軌(3天/2%)</span>' : '',
-      s.bounce5d2pct ? '<span style="font-size:9px;background:#1a3a2a;color:#34d399;padding:1px 5px;border-radius:3px;margin-right:2px;white-space:nowrap">🔄 回撤反彈(5天/2%)</span>' : '',
-      s.bounce3d2pct && !s.bounce5d2pct ? '<span style="font-size:9px;background:#1a3a2a;color:#34d399;padding:1px 5px;border-radius:3px;margin-right:2px;white-space:nowrap">🔄 回撤反彈(3天/2%)</span>' : '',
-      s.bounce5d5pct && !s.bounce5d2pct ? '<span style="font-size:9px;background:#1a3a2a;color:#6ee7b7;padding:1px 5px;border-radius:3px;margin-right:2px;white-space:nowrap">🔄 回撤反彈(5天/5%)</span>' : '',
-      s.bounce3d5pct && !s.bounce3d2pct && !s.bounce5d5pct ? '<span style="font-size:9px;background:#1a3a2a;color:#6ee7b7;padding:1px 5px;border-radius:3px;margin-right:2px;white-space:nowrap">🔄 回撤反彈(3天/5%)</span>' : '',
+      s.crossLower    ? '<span style="font-size:9px;background:#14532d;color:#4ade80;padding:1px 5px;border-radius:3px;margin-right:2px;white-space:nowrap">⬆ 升穿下軌</span>' : '',
+      s.crossSma      ? '<span style="font-size:9px;background:#1e3a5f;color:#60a5fa;padding:1px 5px;border-radius:3px;margin-right:2px;white-space:nowrap">⬆ 升穿中線</span>' : '',
+      s.pullbackToSma ? '<span style="font-size:9px;background:#2d1b00;color:#fb923c;padding:1px 5px;border-radius:3px;margin-right:2px;white-space:nowrap">📉 回撤中線</span>' : '',
+      s.bounceFromSma ? '<span style="font-size:9px;background:#1a3a2a;color:#34d399;padding:1px 5px;border-radius:3px;margin-right:2px;white-space:nowrap">🔄 回撤反彈</span>' : '',
+      s.nearUpper5d2pct ? '<span style="font-size:9px;background:#1a2a4a;color:#a78bfa;padding:1px 5px;border-radius:3px;margin-right:2px;white-space:nowrap">🔝 貼近上軌(5天)</span>' : '',
+      s.nearUpper3d2pct && !s.nearUpper5d2pct ? '<span style="font-size:9px;background:#1a2a4a;color:#a78bfa;padding:1px 5px;border-radius:3px;margin-right:2px;white-space:nowrap">🔝 貼近上軌(3天)</span>' : '',
+      s.bullishDiv    ? '<span style="font-size:9px;background:#0a1628;color:#60a5fa;padding:1px 5px;border-radius:3px;margin-right:2px;white-space:nowrap">📈 MACD底背離</span>' : '',
+      s.bearishDiv    ? '<span style="font-size:9px;background:#1a0a0a;color:#f87171;padding:1px 5px;border-radius:3px;margin-right:2px;white-space:nowrap">📉 MACD頂背離</span>' : '',
+      s.macdCrossUp   ? '<span style="font-size:9px;background:#0a1f12;color:#4ade80;padding:1px 5px;border-radius:3px;margin-right:2px;white-space:nowrap">⬆ MACD金叉</span>' : '',
+      s.macdCrossDown ? '<span style="font-size:9px;background:#1a0a0a;color:#f87171;padding:1px 5px;border-radius:3px;margin-right:2px;white-space:nowrap">⬇ MACD死叉</span>' : '',
     ].filter(Boolean).join('');
 
     // Position bar — shows price position between lower and upper band
@@ -632,16 +630,16 @@ function updateSignalPanel() {
   const f2 = n => typeof n==='number'?n.toFixed(2):'—';
 
   // Bounce
+  // Bounce: setup found, yesterday touched SMA, today above SMA
   const bounceStocks = allStocks
-    .filter(s=>s.bounce5d2pct||s.bounce3d2pct||s.bounce5d5pct||s.bounce3d5pct)
-    .map(s=>({...s, _sigLabel: s.bounce5d2pct?'5天/2%':s.bounce3d2pct?'3天/2%':s.bounce5d5pct?'5天/5%':'3天/5%', _sigColor:'#34d399'}));
+    .filter(s => s.bounceFromSma)
+    .map(s => ({...s, _sigLabel:'前5日全高於中線且貼近上軌 → 昨觸中線 → 今反彈', _sigColor:'#34d399'}));
   document.getElementById('sig-bounce-wrap').innerHTML = sigTable(bounceStocks, SIG_COLS, '無符合股票');
 
-  // Pullback (not yet bounced)
+  // Pullback: setup found, currently near SMA, not yet bounced
   const pbStocks = allStocks
-    .filter(s=>(s.pullback3d2pct||s.pullback5d2pct||s.pullback3d5pct||s.pullback5d5pct)
-             && !(s.bounce3d2pct||s.bounce5d2pct||s.bounce3d5pct||s.bounce5d5pct))
-    .map(s=>({...s, _sigLabel: s.pullback5d2pct?'5天/2%':s.pullback3d2pct?'3天/2%':s.pullback5d5pct?'5天/5%':'3天/5%', _sigColor:'#fb923c'}));
+    .filter(s => s.pullbackToSma && !s.bounceFromSma)
+    .map(s => ({...s, _sigLabel:'前5日全高於中線且貼近上軌 → 現回撤中線', _sigColor:'#fb923c'}));
   document.getElementById('sig-pullback-wrap').innerHTML = sigTable(pbStocks, SIG_COLS, '無符合股票');
 
   // MACD
@@ -663,9 +661,13 @@ function updateSignalPanel() {
   ];
   const macdStocks = allStocks.filter(s=>s.bullishDiv||s.bearishDiv||s.macdCrossUp||s.macdCrossDown)
     .map(s=>({...s,
-      _sigLabel: s.bullishDiv?'📈 看漲背離':s.bearishDiv?'📉 看跌背離':s.macdCrossUp?'⬆ MACD金叉':'⬇ MACD死叉',
+      _sigLabel: s.bullishDiv?'📈 底背離（價新低MACD未新低）':
+                 s.bearishDiv?'📉 頂背離（價新高MACD未新高）':
+                 s.macdCrossUp?'⬆ MACD金叉（MACD穿越訊號線向上）':
+                 '⬇ MACD死叉（MACD穿越訊號線向下）',
       _sigColor: s.bullishDiv||s.macdCrossUp?'#4ade80':'#f87171'
-    }));
+    }))
+    .sort((a,b)=> (b.bullishDiv?4:b.bearishDiv?3:b.macdCrossUp?2:1)-(a.bullishDiv?4:a.bearishDiv?3:a.macdCrossUp?2:1));
   document.getElementById('sig-macd-wrap').innerHTML = sigTable(macdStocks, MACD_COLS, '無符合股票');
 
   // Near upper
