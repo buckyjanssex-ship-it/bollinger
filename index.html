@@ -633,13 +633,13 @@ function updateSignalPanel() {
   // Bounce: setup found, yesterday touched SMA, today above SMA
   const bounceStocks = allStocks
     .filter(s => s.bounceFromSma)
-    .map(s => ({...s, _sigLabel:'前5日全高於中線且貼近上軌 → 昨觸中線 → 今反彈', _sigColor:'#34d399'}));
+    .map(s => ({...s, _sigLabel:'前10日全高於中線且≥6日貼近上軌 → 昨觸中線 → 今反彈', _sigColor:'#34d399'}));
   document.getElementById('sig-bounce-wrap').innerHTML = sigTable(bounceStocks, SIG_COLS, '無符合股票');
 
   // Pullback: setup found, currently near SMA, not yet bounced
   const pbStocks = allStocks
     .filter(s => s.pullbackToSma && !s.bounceFromSma)
-    .map(s => ({...s, _sigLabel:'前5日全高於中線且貼近上軌 → 現回撤中線', _sigColor:'#fb923c'}));
+    .map(s => ({...s, _sigLabel:'前10日全高於中線且≥6日貼近上軌 → 現回撤中線', _sigColor:'#fb923c'}));
   document.getElementById('sig-pullback-wrap').innerHTML = sigTable(pbStocks, SIG_COLS, '無符合股票');
 
   // MACD

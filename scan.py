@@ -188,10 +188,10 @@ def detect_patterns(closes):
             # Pullback day: price touched or went below SMA (within 1%)
             if p_pb > s_pb * 1.01:
                 continue
-            # Check 5 days before pullback day
+            # Check 10 days before pullback day
             all_above  = True
             near_upper = 0
-            for k in range(1, 6):
+            for k in range(1, 11):
                 check_idx = pb_idx - k
                 if check_idx < 19:
                     all_above = False
@@ -207,7 +207,7 @@ def detect_patterns(closes):
                 dist = (u_k - p_k) / u_k * 100
                 if dist <= 5.0:         # within 5% of upper
                     near_upper += 1
-            if all_above and near_upper >= 3:
+            if all_above and near_upper >= 6:  # majority of 10 days
                 return True, d_ago
         return False, -1
 
@@ -294,7 +294,7 @@ def detect_patterns(closes):
 
 def fetch_batch(tickers):
     url = (f"https://api.twelvedata.com/time_series"
-           f"?symbol={','.join(tickers)}&interval=1day&outputsize=40"
+           f"?symbol={','.join(tickers)}&interval=1day&outputsize=50"
            f"&apikey={API_KEY}&format=JSON")
     req = urllib.request.Request(url, headers={"Accept": "application/json"})
     with urllib.request.urlopen(req, timeout=30) as r:
