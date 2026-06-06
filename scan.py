@@ -172,58 +172,42 @@ def detect_patterns(closes):
     #   - all 5 closes > SMA on that day
     #   - >= 3 of 5 closes within 5% of upper band on that day
 
-    def has_valid_setup(closes_all, lookback=20):
+    def has_valid_setup(closes_all):
         """
-        Scan backwards to find a pullback day, verify 5-day setup before it.
-        Returns (found, pullback_day_ago, prev_touched) where prev_touched means
-        the pullback day is yesterday (day_ago == 1).
+        Strict rules:
+        1. YESTERDAY (d_ago=1) must have touched/fallen to SMA (price <= SMA * 1.01)
+        2. The 10 days BEFORE yesterday must ALL be above SMA
+        3. At least 6 of those 10 days must be within 5% of the upper band
         """
         nn = len(closes_all)
-        for d_ago in range(1, lookback + 1):
-            pb_idx = nn - 1 - d_ago   # absolute index of pullback day
-            if pb_idx < 25: break
-            s_pb, u_pb, _ = band_at(closes_all, pb_idx)
-            if s_pb is None: break
-            p_pb = closes_all[pb_idx]
-            # Pullback day: price touched or went below SMA (within 1%)
-            if p_pb > s_pb * 1.01:
-                continue
-            # Check 10 days before pullback day
-            all_above  = True
-            near_upper = 0
-            for k in range(1, 11):
-                check_idx = pb_idx - k
-                if check_idx < 19:
-                    all_above = False
-                    break
-                s_k, u_k, _ = band_at(closes_all, check_idx)
-                if s_k is None:
-                    all_above = False
-                    break
-                p_k = closes_all[check_idx]
-                if p_k <= s_k:          # must be above SMA
-                    all_above = False
-                    break
-                dist = (u_k - p_k) / u_k * 100
-                if dist <= 5.0:         # within 5% of upper
-                    near_upper += 1
-            if all_above and near_upper >= 6:  # majority of 10 days
-                return True, d_ago
-        return False, -1
+        pb_idx = nn - 2   # yesterday index
+        if pb_idx < 25: return False
+        s_pb, _, _ = band_at(closes_all, pb_idx)
+        if s_pb is None: return False
+        p_pb = closes_all[pb_idx]
+        # Condition 1: yesterday touched/was at/below SMA
+        if p_pb > s_pb * 1.01:
+            return False
+        # Conditions 2 & 3: 10 days before yesterday
+        near_upper = 0
+        for k in range(1, 11):
+            check_idx = pb_idx - k
+            if check_idx < 19: return False
+            s_k, u_k, _ = band_at(closes_all, check_idx)
+            if s_k is None: return False
+            p_k = closes_all[check_idx]
+            if p_k <= s_k: return False   # every day must be above SMA
+            if (u_k - p_k) / u_k * 100 <= 5.0:
+                near_upper += 1
+        return near_upper >= 6   # ≥6 of 10 days within 5% of upper band
 
-    found_setup, pb_d_ago = has_valid_setup(closes)
+    found_setup = has_valid_setup(closes)
 
-    # pullback_to_sma: setup found, and yesterday or today is touching/near SMA
-    yesterday_near_sma = prev <= y_sma * 1.01   # yesterday touched/below SMA
-    today_near_sma     = cur  <= sma  * 1.02    # today still near/below SMA
-    result["pullbackToSma"] = found_setup and (yesterday_near_sma or today_near_sma)
+    # pullbackToSma: conditions met + today still near/below SMA (not yet bounced)
+    result["pullbackToSma"] = found_setup and cur <= sma * 1.03
 
-    # bounce_from_sma: setup found, yesterday touched SMA, today bounced above SMA
-    result["bounceFromSma"] = (
-        found_setup and
-        yesterday_near_sma and  # yesterday at or below SMA
-        cur > sma               # today recovered above SMA
-    )
+    # bounceFromSma: conditions met + today bounced back above SMA
+    result["bounceFromSma"] = found_setup and cur > sma
 
     # ── Currently near upper band ──
     def near_upper_streak(closes_all, min_days, pct):
